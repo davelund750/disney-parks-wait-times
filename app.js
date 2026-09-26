@@ -1,8 +1,9 @@
+// Parks have no emoji: the landmark skyline is their icon.
 const PARKS = [
-  { id: "75ea578a-adc8-4116-a54d-dccb60765ef9", short: "MK", name: "Magic Kingdom", accent: "#1f6feb", icon: "\u{1F3F0}" },
-  { id: "47f90d2c-e191-4239-a466-5892ef59a88b", short: "EP", name: "EPCOT", accent: "#a371f7", icon: "\u{1F310}" },
-  { id: "288747d1-8b4f-4a64-867e-ea7c9b27bad8", short: "HS", name: "Hollywood Studios", accent: "#f0883e", icon: "\u{1F3AC}" },
-  { id: "1c84a229-8862-4648-9c71-378ddd2c7693", short: "AK", name: "Animal Kingdom", accent: "#39c5cf", icon: "\u{1F333}" },
+  { id: "75ea578a-adc8-4116-a54d-dccb60765ef9", short: "MK", name: "Magic Kingdom", accent: "#1f6feb" },
+  { id: "47f90d2c-e191-4239-a466-5892ef59a88b", short: "EP", name: "EPCOT", accent: "#a371f7" },
+  { id: "288747d1-8b4f-4a64-867e-ea7c9b27bad8", short: "HS", name: "Hollywood Studios", accent: "#f0883e" },
+  { id: "1c84a229-8862-4648-9c71-378ddd2c7693", short: "AK", name: "Animal Kingdom", accent: "#39c5cf" },
 ];
 
 const ALL_PARKS = { id: "ALL", short: "ALL", name: "All Parks", accent: "#f4c542", icon: "\u{1F3A2}" };
@@ -68,7 +69,7 @@ const els = {
   grid: document.getElementById("rideGrid"),
   carousel: document.getElementById("carousel"),
   carouselCard: document.getElementById("carouselCard"),
-  landmarks: document.querySelectorAll("#carouselSkyline .landmark"),
+  landmarks: document.querySelectorAll("#skyline .landmark-btn"),
   carouselName: document.getElementById("carouselName"),
   carouselWait: document.getElementById("carouselWait"),
   carouselFav: document.getElementById("carouselFav"),
@@ -108,7 +109,7 @@ function setActivePark(parkId) {
   const entry = state.parkData[parkId];
   const tab = parkById(parkId);
   const label = (parkId !== "ALL" && entry && entry.name) || (tab && tab.name) || "";
-  els.status.textContent = tab ? `${tab.icon} ${label}` : label;
+  els.status.textContent = label;
   renderTabs();
 }
 
@@ -243,7 +244,6 @@ function openRidesFor(park) {
       parkId: park.id,
       parkShort: park.short,
       parkName: park.name,
-      icon: park.icon,
       accent: park.accent,
       id: ride.id,
       name: ride.name,
@@ -259,7 +259,6 @@ function closedSlideFor(park) {
     parkId: park.id,
     parkShort: park.short,
     parkName: park.name,
-    icon: park.icon,
     accent: park.accent,
     status: "PARK_CLOSED",
     nextOpenLabel: info.nextOpenLabel || "soon",
@@ -347,7 +346,7 @@ function ridesAcrossParks(include) {
   const combined = PARKS.flatMap((park) => {
     const entry = state.parkData[park.id];
     if (!entry) return [];
-    return entry.rides.filter(include).map((ride) => ({ ...ride, parkShort: park.short, icon: park.icon }));
+    return entry.rides.filter(include).map((ride) => ({ ...ride, parkShort: park.short }));
   });
   return combined.sort((a, b) => {
     const aOpen = a.status === "OPERATING" && a.waitTime !== null;
@@ -365,6 +364,7 @@ function gridRides() {
 }
 
 function renderGrid() {
+  highlightLandmark(null);
   const isCombined = state.activeParkId === ALL_PARKS.id || state.activeParkId === FAVORITES.id;
   const ready = isCombined ? Object.keys(state.parkData).length > 0 : !!state.parkData[state.activeParkId];
   if (!ready) {
@@ -384,10 +384,11 @@ function renderGrid() {
     const card = document.createElement("div");
     card.className = "ride-card";
 
-    if (ride.icon) {
+    // Combined views (All Parks, Favorites) tag each card with its park.
+    if (ride.parkShort) {
       const tag = document.createElement("div");
       tag.className = "ride-park-tag";
-      tag.textContent = `${ride.icon} ${ride.parkShort}`;
+      tag.textContent = ride.parkShort;
       card.appendChild(tag);
     }
 
@@ -456,10 +457,15 @@ function renderHoursFor(parkId) {
   els.carouselHours.hidden = false;
 }
 
-// Fills in the landmark of the given park (e.g. "MK"); null clears them all.
+// Fills in one landmark: the selected park's, if a single park is selected;
+// otherwise the given park's (e.g. "MK", the current carousel slide's), or
+// none for null.
 function highlightLandmark(parkShort) {
+  const selected = PARKS.find((park) => park.id === state.activeParkId);
+  const filled = selected ? selected.short : parkShort;
   for (const landmark of els.landmarks) {
-    landmark.classList.toggle("active", landmark.dataset.park === parkShort);
+    landmark.classList.toggle("active", landmark.dataset.park === filled);
+    landmark.setAttribute("aria-pressed", String(!!selected && landmark.dataset.park === selected.short));
   }
 }
 
@@ -634,9 +640,11 @@ function setView(view) {
 
 // ---- tabs ----
 
+// Only All Parks and Favorites are tabs; single parks are picked from the
+// landmark skyline at the bottom.
 function renderTabs() {
   els.tabs.innerHTML = "";
-  for (const tab of TABS) {
+  for (const tab of [ALL_PARKS, FAVORITES]) {
     const btn = document.createElement("button");
     const isActive = tab.id === state.activeParkId;
     btn.className = "park-tab" + (isActive ? " active" : "");
@@ -816,6 +824,14 @@ function init() {
   els.carouselPrev.addEventListener("click", () => goTo(state.index - 1));
   els.carouselNext.addEventListener("click", () => goTo(state.index + 1));
   els.carouselPlay.addEventListener("click", () => setPlaying(!state.playing));
+  // Tapping a landmark shows just that park; tapping it again goes back to
+  // All Parks.
+  for (const landmark of els.landmarks) {
+    const park = PARKS.find((p) => p.short === landmark.dataset.park);
+    landmark.addEventListener("click", () =>
+      selectTab(state.activeParkId === park.id ? ALL_PARKS.id : park.id)
+    );
+  }
   els.carouselFav.addEventListener("click", () => toggleFavorite(els.carouselFav.dataset.rideId));
   els.carouselPlay.textContent = "⏸";
   els.carouselPlay.setAttribute("aria-label", "Pause");

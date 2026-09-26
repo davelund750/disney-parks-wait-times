@@ -15,14 +15,17 @@ Covers Magic Kingdom, EPCOT, Hollywood Studios, and Animal Kingdom, plus an
 minutes; park hours/schedule refresh on the same cadence; weather refreshes
 every 15 minutes.
 
-Six tabs across the top — **All Parks**, **Favorites**, then the four
-individual parks — scope both views:
+Two tabs across the top, **All Parks** and **Favorites**, plus a skyline of
+the four parks' landmarks along the bottom, scope both views:
 
-- A **park tab** (MK/EP/HS/AK) restricts both views to just that park, rides
-  sorted longest-wait-first.
+- **Tap a landmark** (castle, Spaceship Earth, Tower of Terror, Tree of Life)
+  to restrict both views to just that park, rides sorted longest-wait-first.
+  The selected park's landmark is filled in; tap it again to go back to All
+  Parks. On All Parks and Favorites, the carousel fills in the current
+  slide's park instead.
 - **All Parks** pools every open ride from all four parks. In grid view
   that's one combined list sorted by wait time (each card tagged with its
-  park's icon); in carousel view the rides are shuffled into a random order
+  park, e.g. "MK"); in carousel view the rides are shuffled into a random order
   each time you select the tab (or whenever data refreshes), so the loop
   jumps between parks instead of finishing one before starting the next.
 - **Favorites** shows only the rides you've starred, from every park. Tap the
@@ -88,12 +91,13 @@ date is today, it instead reads "See ya real soon!"; once the date is in the
 past, it's cleared automatically rather than lingering. The selected date is
 saved in the browser's `localStorage`, so it's **per-device/per-browser** —
 setting it on one machine (or one browser) doesn't carry over to another.
-The same is true of the view (carousel/grid) and active park tab.
+The same is true of the view (carousel/grid). The starting tab isn't saved:
+the app opens on Favorites if you have any, otherwise All Parks.
 
 ## Branding
 
 Branding is done tastefully rather than with official Disney artwork: each
-park gets an accent color and an emoji icon, ride names/wait numbers use a
+park is represented by a line drawing of its landmark, ride names/wait numbers use a
 playful display font (Baloo 2), and the carousel has a small cursive "Walt
 Disney World" wordmark for flavor. Fonts load from Google Fonts, so the Pi
 needs internet access for that too (it already needs it for the wait-time

@@ -269,13 +269,15 @@ body {
 
 /* ---- main / grid ---- */
 main {
+  --skyline-height: 15vh;
   flex: 1 1 auto;
   position: relative;
   min-height: 0;
 }
 
 .ride-grid {
-  height: 100%;
+  /* Stops above the landmark skyline, so rides never scroll underneath it. */
+  height: calc(100% - var(--skyline-height));
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   grid-auto-rows: min-content;
@@ -365,7 +367,6 @@ main {
 
 /* ---- carousel ---- */
 .carousel {
-  --skyline-height: 15vh;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -376,8 +377,8 @@ main {
   padding: 2vh 6vw calc(var(--skyline-height) + 2vh);
 }
 
-/* ---- landmark skyline ---- */
-.carousel-skyline {
+/* ---- landmark skyline (also the park picker) ---- */
+.skyline {
   position: absolute;
   left: 0;
   right: 0;
@@ -388,10 +389,23 @@ main {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  pointer-events: none;
+  pointer-events: none; /* only the landmarks themselves take taps */
 }
 
-.carousel-skyline .landmark {
+.landmark-btn {
+  pointer-events: auto;
+  height: 100%;
+  /* A little extra width makes the narrow landmarks easier to tap. */
+  padding: 0 1.5vw;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+}
+
+.landmark {
+  display: block;
   height: 100%;
   width: auto;
   overflow: visible;
@@ -410,12 +424,12 @@ main {
   fill: none;
 }
 
-.landmark.active .fill {
+.landmark-btn.active .fill {
   fill: #fff;
 }
 
 /* The castle's doorway stays open when the castle is filled. */
-.landmark.active .cutout {
+.landmark-btn.active .cutout {
   fill: var(--bg);
 }
 
