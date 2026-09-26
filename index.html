@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>WDW Wait Times</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Loaded non-blocking so a slow or missing network at boot can't hold the page blank. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Grand+Hotel&display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <nav class="park-tabs" id="parkTabs"></nav>
+    <div class="topbar-right">
+      <button class="view-toggle" id="viewToggle"></button>
+      <button class="icon-button trip-date-icon" id="tripDateButton" aria-label="Set next trip date">
+        <span class="cal-icon">
+          <span class="cal-icon-header"></span>
+          <span class="cal-icon-day" id="calIconDay"></span>
+        </span>
+      </button>
+      <div class="clock" id="clock">--:--</div>
+    </div>
+  </header>
+
+  <main id="mainView">
+    <div id="rideGrid" class="ride-grid" hidden>
+      <div class="loading">Loading wait times…</div>
+    </div>
+
+    <div id="carousel" class="carousel" hidden>
+      <div class="carousel-weather" id="carouselWeather" hidden></div>
+      <div class="carousel-hours" id="carouselHours" hidden></div>
+
+      <button class="carousel-nav prev" id="carouselPrev" aria-label="Previous ride">&#8249;</button>
+      <button class="carousel-nav next" id="carouselNext" aria-label="Next ride">&#8250;</button>
+
+      <div class="carousel-card" id="carouselCard">
+        <div class="carousel-wordmark">Walt Disney World</div>
+        <div class="carousel-name" id="carouselName"></div>
+        <button class="fav-star carousel-fav" id="carouselFav" hidden></button>
+        <div class="carousel-wait" id="carouselWait">
+          <span class="value"></span><span class="unit"></span>
+        </div>
+      </div>
+
+      <!-- Park landmarks (from landmarks/skyline.svg); the current slide's park
+           is filled in. Every landmark shares the same vertical range (y 1-42)
+           so they keep their relative sizes. -->
+      <div class="carousel-skyline" id="carouselSkyline" aria-hidden="true">
+        <svg class="landmark" data-park="MK" viewBox="40.5 1 24 41.5" width="24" height="41.5">
+          <path class="fill" d="M42 41 V31 H43 V28 L44 24 L45 28 V31 H46 V26 H47 V22 L48 19 L49 22 V20 H50 V14 L51 11 L52 14 L53 2 L54 14 L55 11 L56 14 V20 H57 V22 L58 19 L59 22 V26 H60 V29 L61 26 L62 29 V31 H63 V35 H64 V41 Z"/>
+          <path class="cutout" d="M50.5 41 V38 Q53 35 55.5 38 V41 Z"/>
+          <path class="outline" d="M42 41 V31 H43 V28 L44 24 L45 28 V31 H46 V26 H47 V22 L48 19 L49 22 V20 H50 V14 L51 11 L52 14 L53 2 L54 14 L55 11 L56 14 V20 H57 V22 L58 19 L59 22 V26 H60 V29 L61 26 L62 29 V31 H63 V35 H64 V41"/>
+          <path class="outline" d="M50.5 41 V38 Q53 35 55.5 38 V41"/>
+        </svg>
+        <svg class="landmark" data-park="EP" viewBox="64.5 1 23 41.5" width="23" height="41.5">
+          <circle class="fill" cx="76" cy="26.5" r="10.5"/>
+          <path class="outline" d="M71.5 35.8 V41 M80.5 35.8 V41"/>
+          <circle class="outline" cx="76" cy="26.5" r="10.5"/>
+        </svg>
+        <svg class="landmark" data-park="HS" viewBox="87 1 21 41.5" width="21" height="41.5">
+          <path class="fill" d="M88 41 V30 H90 V17 L90.5 15 L91 17 H93 L94 15.5 L95 14 L96 13.5 L97 12 L98 13.5 L99 14 L100 15.5 L101 17 H103 L103.5 15 L104 17 V27 H107 V41 Z"/>
+          <path class="outline" d="M88 41 V30 H90 V17 L90.5 15 L91 17 H93 L94 15.5 L95 14 L96 13.5 L97 12 L98 13.5 L99 14 L100 15.5 L101 17 H103 L103.5 15 L104 17 V27 H107 V41"/>
+        </svg>
+        <svg class="landmark" data-park="AK" viewBox="107.5 1 27 41.5" width="27" height="41.5">
+          <path class="fill" d="M117 41 Q119 40 119.5 37.5 Q120 35 119 32.5 Q117 33.5 115 33 Q113 34.5 110 33 Q108.5 30 111 28 Q110 24 113 22 Q113.5 18 117.5 18 Q119.5 15 123 16.5 Q126 14.5 128 17.5 Q131.5 17.5 131 21.5 Q133.5 24 131.5 27 Q132.5 30.5 129 31 Q126 33 123 32.5 Q121.5 35 122.5 38 Q123 40.5 126 41 Z"/>
+          <path class="outline" d="M110 33 Q113 34.5 115 33 Q117 33.5 119 32.5 Q120 35 119.5 37.5 Q119 40 117 41"/>
+          <path class="outline" d="M110 33 Q108.5 30 111 28 Q110 24 113 22 Q113.5 18 117.5 18 Q119.5 15 123 16.5 Q126 14.5 128 17.5 Q131.5 17.5 131 21.5 Q133.5 24 131.5 27 Q132.5 30.5 129 31 Q126 33 123 32.5 Q121.5 35 122.5 38 Q123 40.5 126 41"/>
+        </svg>
+      </div>
+
+      <div class="carousel-footer">
+        <button class="carousel-play" id="carouselPlay" aria-label="Pause"></button>
+        <div class="carousel-position" id="carouselPosition"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="statusbar">
+    <span id="parkStatus"></span>
+    <span id="tripCountdown" hidden></span>
+    <span id="lastUpdated"></span>
+  </footer>
+
+  <div class="modal-overlay" id="dateModalOverlay" hidden>
+    <div class="date-modal">
+      <div class="date-modal-header">
+        <button class="date-nav" id="monthPrev" aria-label="Previous month">&#8249;</button>
+        <div class="date-modal-title" id="monthLabel"></div>
+        <button class="date-nav" id="monthNext" aria-label="Next month">&#8250;</button>
+      </div>
+      <div class="date-weekdays">
+        <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+      </div>
+      <div class="date-grid" id="dateGrid"></div>
+      <div class="date-modal-footer">
+        <button class="date-modal-btn clear" id="clearTripDate">Clear</button>
+        <button class="date-modal-btn cancel" id="closeDateModal">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

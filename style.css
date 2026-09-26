@@ -1,0 +1,655 @@
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --border: #2a313c;
+  --text: #e6edf3;
+  --text-dim: #8b98a5;
+  --green: #2ea043;
+  --yellow: #d4a72c;
+  --red: #d1373f;
+  --gray: #4b5563;
+  --accent: #1f6feb;
+  --font-display: "Baloo 2", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-script: "Grand Hotel", cursive;
+}
+
+* { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- top bar ---- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6vh 1.2vw;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.park-tabs {
+  display: flex;
+  gap: 0.5vw;
+  overflow-x: auto;
+}
+
+.park-tab {
+  padding: 0.9vh 1.4vw;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: clamp(11px, 1.6vw, 16px);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.park-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  /* Black reads better than white on every tab color (most are light). */
+  color: #000;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  flex: 0 0 auto;
+}
+
+.view-toggle {
+  padding: 0.7vh 1.1vw;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: clamp(10px, 1.4vw, 14px);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.clock {
+  font-size: clamp(14px, 2vw, 20px);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.icon-button {
+  padding: 0.7vh 1vw;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: clamp(14px, 2.2vw, 20px);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.trip-date-icon {
+  padding: 0;
+  width: clamp(30px, 7vw, 38px);
+  height: clamp(30px, 7vw, 38px);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cal-icon {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.cal-icon-header {
+  flex: 0 0 28%;
+  background: var(--red);
+}
+
+.cal-icon-day {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f4f4;
+  color: #1a1a1a;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(12px, 3vw, 16px);
+}
+
+/* ---- trip date modal ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.date-modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 2.2vh 4vw;
+  width: min(92vw, 420px);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.date-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.4vh;
+}
+
+.date-modal-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(16px, 4.5vw, 20px);
+  color: var(--text);
+}
+
+.date-nav {
+  flex: 0 0 auto;
+  width: clamp(36px, 9vw, 44px);
+  height: clamp(36px, 9vw, 44px);
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: clamp(18px, 4.5vw, 24px);
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.date-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  color: var(--text-dim);
+  font-size: clamp(10px, 2.6vw, 12px);
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 0.6vh;
+}
+
+.date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.5vh 0.5vw;
+}
+
+.date-cell {
+  aspect-ratio: 1;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: clamp(13px, 3.6vw, 16px);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.date-cell.outside {
+  color: var(--text-dim);
+  opacity: 0.4;
+}
+
+.date-cell.past {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.date-cell.today {
+  border-color: var(--accent);
+}
+
+.date-cell.selected {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+.date-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 3vw;
+  margin-top: 1.8vh;
+}
+
+.date-modal-btn {
+  flex: 1 1 auto;
+  padding: 1.2vh 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-size: clamp(12px, 3.2vw, 14px);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.date-modal-btn.cancel { color: var(--text); }
+.date-modal-btn.clear { color: var(--red); }
+
+#tripCountdown {
+  font-size: clamp(14px, 2.2vw, 20px);
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ---- main / grid ---- */
+main {
+  flex: 1 1 auto;
+  position: relative;
+  min-height: 0;
+}
+
+.ride-grid {
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-auto-rows: min-content;
+  gap: 1vh 1vw;
+  padding: 1.2vh 1.2vw;
+  overflow-y: auto;
+  cursor: grab;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+
+.ride-grid::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.ride-grid.dragging {
+  cursor: grabbing;
+}
+
+.loading, .error {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-dim);
+  padding-top: 20vh;
+  font-size: clamp(14px, 2vw, 18px);
+}
+
+.ride-card {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1vh 0.8vw;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 90px;
+}
+
+/* Keeps text clear of the favorite star in the card's top-right corner. */
+.ride-card .ride-park-tag,
+.ride-card .ride-name {
+  padding-right: 30px;
+}
+
+.ride-park-tag {
+  font-size: clamp(9px, 1.2vw, 11px);
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.4vh;
+}
+
+.ride-name {
+  font-size: clamp(11px, 1.5vw, 14px);
+  font-weight: 600;
+  line-height: 1.25;
+  margin-bottom: 0.8vh;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.ride-wait {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3em;
+}
+
+.ride-wait .value {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 3.2vw, 34px);
+  font-weight: 800;
+}
+
+.ride-wait .unit {
+  font-size: clamp(10px, 1.3vw, 13px);
+  color: var(--text-dim);
+}
+
+.badge-green .value { color: var(--green); }
+.badge-yellow .value { color: var(--yellow); }
+.badge-red .value { color: var(--red); }
+.badge-gray .value, .badge-gray .unit { color: var(--gray); }
+
+/* ---- carousel ---- */
+.carousel {
+  --skyline-height: 15vh;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  /* Leave room at the bottom for the landmark skyline. */
+  padding: 2vh 6vw calc(var(--skyline-height) + 2vh);
+}
+
+/* ---- landmark skyline ---- */
+.carousel-skyline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--skyline-height);
+  /* Spread across the screen, clear of the play button and slide counter. */
+  padding: 0 12vw;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.carousel-skyline .landmark {
+  height: 100%;
+  width: auto;
+  overflow: visible;
+}
+
+.landmark .outline {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.landmark .fill,
+.landmark .cutout {
+  fill: none;
+}
+
+.landmark.active .fill {
+  fill: #fff;
+}
+
+/* The castle's doorway stays open when the castle is filled. */
+.landmark.active .cutout {
+  fill: var(--bg);
+}
+
+.carousel-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 2vh;
+  width: 100%;
+  max-width: 90%;
+}
+
+.carousel-wordmark {
+  font-family: var(--font-script);
+  font-size: clamp(22px, 4.5vw, 38px);
+  font-weight: 400;
+  color: #f4c542;
+  text-shadow: 0 0 14px rgba(244, 197, 66, 0.35);
+  line-height: 1;
+}
+
+.carousel-name {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 5vw, 46px);
+  font-weight: 700;
+  line-height: 1.15;
+  max-height: 3.6em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.carousel-wait {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+}
+
+.carousel-wait .value {
+  font-family: var(--font-display);
+  font-size: clamp(64px, 16vw, 160px);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.carousel-wait .unit {
+  font-size: clamp(16px, 3vw, 28px);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.carousel-wait.closed .value {
+  font-size: clamp(22px, 4.5vw, 42px);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+/* Closed park: "<Park> is closed. / Opening tomorrow at …" in large type. */
+.carousel-card.park-closed .carousel-name {
+  font-size: clamp(28px, 7vw, 64px);
+}
+
+.carousel-card.park-closed .carousel-wait.closed .value {
+  font-size: clamp(22px, 5vw, 48px);
+  color: var(--text);
+}
+
+.carousel-wait.badge-green .value { color: var(--green); }
+.carousel-wait.badge-yellow .value { color: var(--yellow); }
+.carousel-wait.badge-red .value { color: var(--red); }
+.carousel-wait.badge-gray .value, .carousel-wait.badge-gray .unit { color: var(--gray); }
+
+.carousel-weather,
+.carousel-hours {
+  position: absolute;
+  top: 2vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4vh;
+  padding: 1vh 1.6vw;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.carousel-weather { left: 6vw; }
+.carousel-hours { right: 6vw; }
+
+.carousel-weather .weather-label,
+.carousel-hours .hours-label {
+  font-size: clamp(10px, 1.4vw, 14px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.carousel-weather .weather-reading,
+.carousel-hours .hours-reading {
+  display: flex;
+  align-items: center;
+  gap: 0.5vw;
+  font-size: clamp(20px, 3.4vw, 32px);
+  font-weight: 700;
+}
+
+.carousel-hours .hours-reading {
+  font-size: clamp(16px, 2.6vw, 24px);
+  white-space: nowrap;
+}
+
+.carousel-hours .hours-event {
+  font-size: clamp(10px, 1.3vw, 13px);
+  font-weight: 600;
+  color: var(--yellow);
+  white-space: nowrap;
+}
+
+.carousel-weather .weather-icon {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.carousel-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: clamp(36px, 7vw, 56px);
+  height: clamp(36px, 7vw, 56px);
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  font-size: clamp(20px, 4vw, 30px);
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.carousel-nav.prev { left: 1.5vw; }
+.carousel-nav.next { right: 1.5vw; }
+
+.carousel-footer {
+  position: absolute;
+  bottom: 2vh;
+  left: 6vw;
+  right: 6vw;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.carousel-play {
+  flex: 0 0 auto;
+  width: clamp(24px, 4vw, 32px);
+  height: clamp(24px, 4vw, 32px);
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: clamp(11px, 1.8vw, 14px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.carousel-position {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  font-size: clamp(11px, 1.6vw, 14px);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- status bar ---- */
+.statusbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6vh 1.2vw;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: clamp(10px, 1.3vw, 13px);
+}
+
+/* ---- favorites ---- */
+.fav-star {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fav-star.on {
+  color: #f4c542;
+}
+
+.ride-card .fav-star {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 36px;
+  height: 36px;
+  font-size: clamp(16px, 2vw, 22px);
+}
+
+.carousel-fav {
+  /* The oversized wait-time number below overlaps this button's area; keep
+     the button on top so taps reach it. */
+  position: relative;
+  z-index: 1;
+  padding: 0.8vh 1.8vw;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: clamp(13px, 1.8vw, 17px);
+  font-weight: 700;
+}
+
+.carousel-fav.on {
+  border-color: #f4c542;
+}
+
+/* ---- kiosk ---- */
+body.kiosk,
+body.kiosk * {
+  cursor: none !important;
+}

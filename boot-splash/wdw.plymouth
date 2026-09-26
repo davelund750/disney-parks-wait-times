@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=WDW Wait Times
+Description=Magic Starting boot splash for the WDW Wait Times kiosk
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/wdw
+ScriptFile=/usr/share/plymouth/themes/wdw/wdw.script
