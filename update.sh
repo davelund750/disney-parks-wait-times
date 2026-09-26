@@ -7,16 +7,26 @@
 # Run as root by wdw-update.timer (installed by install.sh). To run it now:
 #   sudo systemctl start wdw-update.service
 # Log: /var/log/wdw-update.log
+#
+# For tests (tests/test_update.sh), WDW_UPDATE_LOG changes the log file and
+# WDW_REBOOT_CMD replaces the reboot with another command.
 
 set -uo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_USER="$(stat -c %U "$APP_DIR")"
-LOG_FILE=/var/log/wdw-update.log
+# Owner of the project folder (GNU stat on the Pi; BSD stat elsewhere).
+APP_USER="$(stat -c %U "$APP_DIR" 2>/dev/null || stat -f %Su "$APP_DIR")"
+LOG_FILE="${WDW_UPDATE_LOG:-/var/log/wdw-update.log}"
 
 log() { echo "$(date '+%F %T') $*" >> "$LOG_FILE"; }
-# git runs as the folder's owner; as root it refuses a repo someone else owns.
-as_owner() { runuser -u "$APP_USER" -- "$@"; }
+# git runs as the folder's owner: as root, it refuses a repo someone else owns.
+as_owner() {
+  if [ "$(id -u)" -eq 0 ] && [ "$APP_USER" != "root" ]; then
+    runuser -u "$APP_USER" -- "$@"
+  else
+    "$@"
+  fi
+}
 
 # Everything runs inside main(), so bash has read this whole file before the
 # pull below can replace it.
@@ -43,7 +53,11 @@ main() {
   fi
 
   log "rebooting"
-  systemctl reboot
+  if [ -n "${WDW_REBOOT_CMD:-}" ]; then
+    "$WDW_REBOOT_CMD"
+  else
+    systemctl reboot
+  fi
 }
 
 main "$@"

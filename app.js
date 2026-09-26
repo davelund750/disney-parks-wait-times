@@ -1,22 +1,10 @@
-// Parks have no emoji: the landmark skyline is their icon.
-const PARKS = [
-  { id: "75ea578a-adc8-4116-a54d-dccb60765ef9", short: "MK", name: "Magic Kingdom", accent: "#1f6feb" },
-  { id: "47f90d2c-e191-4239-a466-5892ef59a88b", short: "EP", name: "EPCOT", accent: "#a371f7" },
-  { id: "288747d1-8b4f-4a64-867e-ea7c9b27bad8", short: "HS", name: "Hollywood Studios", accent: "#f0883e" },
-  { id: "1c84a229-8862-4648-9c71-378ddd2c7693", short: "AK", name: "Animal Kingdom", accent: "#39c5cf" },
-];
-
-const ALL_PARKS = { id: "ALL", short: "ALL", name: "All Parks", accent: "#f4c542", icon: "\u{1F3A2}" };
-const FAVORITES = { id: "FAV", short: "FAV", name: "Favorites", accent: "#db61a2", icon: "\u2B50" };
+// PARKS, ALL_PARKS, FAVORITES, the formatting helpers, and the slide/grid
+// logic live in logic.js (loaded first); this file wires them to the page.
 const TABS = [ALL_PARKS, FAVORITES, ...PARKS];
 
 const REFRESH_MS = 5 * 60 * 1000; // themeparks.wiki data updates every few minutes
 const SLIDE_MS = 4500; // how long each carousel slide is shown
 const API_BASE = "https://api.themeparks.wiki/v1";
-// Times and dates on screen always use US style (12-hour, "Sep 15"), rather
-// than the browser's locale: the Pi's Chromium runs as en-GB, which would
-// show 24-hour times.
-const DISPLAY_LOCALE = "en-US";
 // Served by server.py, which keeps favorites in a file on the Pi so they
 // survive the kiosk's browser profile being wiped at every boot.
 const FAVORITES_API = "/api/favorites";
@@ -28,27 +16,13 @@ const WEATHER_LON = -81.5639;
 const WEATHER_REFRESH_MS = 15 * 60 * 1000;
 const WEATHER_API = `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=America%2FNew_York`;
 
-// WMO weather codes -> emoji (https://open-meteo.com/en/docs, "WMO Weather interpretation codes")
-function weatherIcon(code) {
-  if (code === 0) return "☀️"; // clear
-  if (code <= 2) return "⛅"; // partly cloudy
-  if (code === 3) return "☁️"; // overcast
-  if (code === 45 || code === 48) return "\u{1F32B}️"; // fog
-  if (code >= 51 && code <= 67) return "\u{1F327}️"; // drizzle/rain
-  if (code >= 71 && code <= 77) return "\u{1F328}️"; // snow
-  if (code >= 80 && code <= 82) return "\u{1F326}️"; // rain showers
-  if (code >= 85 && code <= 86) return "\u{1F328}️"; // snow showers
-  if (code >= 95) return "⛈️"; // thunderstorm
-  return "\u{1F324}️";
-}
-
 const state = {
   view: localStorage.getItem("view") || "carousel",
   // Not remembered between loads: init() starts on Favorites if there are
   // any, otherwise All Parks.
   activeParkId: ALL_PARKS.id,
   parkData: {}, // parkId -> { name, rides: [{name,status,waitTime}] }
-  parkHours: {}, // parkId -> "8:00 AM – 6:00 PM" for today, or null if not found
+  parkHours: {}, // parkId -> parseParkHours() result for today
   sequence: [], // flattened [{parkId, parkShort, parkName, accent, name, status, waitTime}]
   index: 0,
   playing: true,
@@ -117,110 +91,19 @@ function setAccent(color) {
   document.documentElement.style.setProperty("--park-accent", color);
 }
 
-function waitBadgeClass(status, waitTime) {
-  if (status !== "OPERATING" || waitTime === null || waitTime === undefined) return "badge-gray";
-  if (waitTime <= 20) return "badge-green";
-  if (waitTime <= 45) return "badge-yellow";
-  return "badge-red";
-}
-
-function waitLabel(status, waitTime) {
-  if (status === "DOWN") return { value: "Down", unit: "" };
-  if (status === "REFURBISHMENT") return { value: "Closed", unit: "" };
-  if (status === "CLOSED") return { value: "Closed", unit: "" };
-  if (waitTime === null || waitTime === undefined) return { value: "--", unit: "" };
-  return { value: String(waitTime), unit: "min" };
-}
-
 // ---- data ----
 
 async function fetchPark(park) {
   const res = await fetch(`${API_BASE}/entity/${park.id}/live`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  const rides = (data.liveData || [])
-    .filter((e) => e.entityType === "ATTRACTION")
-    .map((e) => ({
-      id: e.id,
-      name: e.name,
-      status: e.status,
-      waitTime: e.queue?.STANDBY?.waitTime ?? null,
-    }))
-    .sort((a, b) => {
-      const aOpen = a.status === "OPERATING" && a.waitTime !== null;
-      const bOpen = b.status === "OPERATING" && b.waitTime !== null;
-      if (aOpen !== bOpen) return aOpen ? -1 : 1;
-      return (b.waitTime ?? -1) - (a.waitTime ?? -1);
-    });
-  return { name: data.name || park.name, rides };
-}
-
-function formatTimeOfDay(date) {
-  return date.toLocaleTimeString(DISPLAY_LOCALE, {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: PARK_TIME_ZONE,
-  });
-}
-
-function formatHoursRange(openTime, closeTime) {
-  return `${formatTimeOfDay(openTime)} – ${formatTimeOfDay(closeTime)}`;
-}
-
-// Labels a future opening time relative to today, to follow "Opening": e.g.
-// "today at 9:00 AM", "tomorrow at 9:00 AM", or "Sep 15 at 9:00 AM" for
-// anything further out.
-function formatNextOpen(openTime) {
-  const now = new Date();
-  const dayKey = (d) => d.toLocaleDateString("en-CA", { timeZone: PARK_TIME_ZONE });
-  const todayStr = dayKey(now);
-  const openDateStr = dayKey(openTime);
-  const timeStr = formatTimeOfDay(openTime);
-  if (openDateStr === todayStr) return `today at ${timeStr}`;
-
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  if (openDateStr === dayKey(tomorrow)) return `tomorrow at ${timeStr}`;
-
-  const dateStr = openTime.toLocaleDateString(DISPLAY_LOCALE, {
-    month: "short",
-    day: "numeric",
-    timeZone: PARK_TIME_ZONE,
-  });
-  return `${dateStr} at ${timeStr}`;
+  return { name: data.name || park.name, rides: parseLiveRides(data) };
 }
 
 async function fetchParkHours(park) {
   const res = await fetch(`${API_BASE}/entity/${park.id}/schedule`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  const now = new Date();
-  const todayStr = now.toLocaleDateString("en-CA", { timeZone: PARK_TIME_ZONE });
-
-  const operating = (data.schedule || [])
-    .filter((e) => e.type === "OPERATING")
-    .map((e) => ({ date: e.date, open: new Date(e.openingTime), close: new Date(e.closingTime) }))
-    .sort((a, b) => a.open - b.open);
-
-  const today = operating.find((e) => e.date === todayStr);
-  const current = operating.find((e) => now >= e.open && now < e.close);
-  const next = operating.find((e) => e.open > now);
-
-  // Hard-ticket nights (e.g. Halloween/Christmas parties) show up as a
-  // separate TICKETED_EVENT window later the same day. The API never names
-  // the event, just this generic description, so we label it generically too.
-  const todayEvent = (data.schedule || []).find(
-    (e) => e.date === todayStr && e.type === "TICKETED_EVENT" && e.description === "Special Ticketed Event"
-  );
-
-  return {
-    label: today ? formatHoursRange(today.open, today.close) : null,
-    isOpenNow: !!current,
-    nextOpenLabel: next ? formatNextOpen(next.open) : null,
-    eventLabel: todayEvent
-      ? formatHoursRange(new Date(todayEvent.openingTime), new Date(todayEvent.closingTime))
-      : null,
-  };
+  return parseParkHours(await res.json(), new Date());
 }
 
 async function fetchAllParkHours() {
@@ -235,65 +118,9 @@ async function fetchAllParkHours() {
   startTimer();
 }
 
-function openRidesFor(park) {
-  const entry = state.parkData[park.id];
-  if (!entry) return [];
-  return entry.rides
-    .filter((ride) => (ride.status === "OPERATING" && ride.waitTime !== null) || ride.status === "DOWN")
-    .map((ride) => ({
-      parkId: park.id,
-      parkShort: park.short,
-      parkName: park.name,
-      accent: park.accent,
-      id: ride.id,
-      name: ride.name,
-      status: ride.status,
-      waitTime: ride.waitTime,
-    }));
-}
-
-function closedSlideFor(park) {
-  const info = state.parkHours[park.id];
-  if (!info || info.isOpenNow) return null;
-  return {
-    parkId: park.id,
-    parkShort: park.short,
-    parkName: park.name,
-    accent: park.accent,
-    status: "PARK_CLOSED",
-    nextOpenLabel: info.nextOpenLabel || "soon",
-  };
-}
-
-// A park's slides: its running rides (those passing `include`), or its
-// "closed" slide if the park is closed and none of them are operating. A park
-// can be closed yet have rides running, e.g. during a ticketed evening event,
-// so operating rides win over the closed slide.
-function parkSlides(park, include = () => true) {
-  const rides = openRidesFor(park).filter(include);
-  if (rides.some((ride) => ride.status === "OPERATING")) return rides;
-  const closed = closedSlideFor(park);
-  return closed ? [closed] : rides;
-}
-
 function buildSequence() {
-  let sequence;
-  if (state.activeParkId === ALL_PARKS.id) {
-    sequence = shuffle(PARKS.flatMap((park) => parkSlides(park)));
-  } else if (state.activeParkId === FAVORITES.id) {
-    // Only parks where you have favorites, and only those favorites.
-    const isFavorite = (ride) => state.favorites.has(ride.id);
-    sequence = PARKS.flatMap((park) => {
-      const entry = state.parkData[park.id];
-      const hasFavorite = !!entry && entry.rides.some(isFavorite);
-      return hasFavorite ? parkSlides(park, isFavorite) : [];
-    });
-  } else {
-    const park = parkById(state.activeParkId);
-    sequence = park ? parkSlides(park) : [];
-  }
-  state.sequence = sequence;
-  if (state.index >= sequence.length) state.index = 0;
+  state.sequence = buildSlides(state, shuffle);
+  if (state.index >= state.sequence.length) state.index = 0;
 }
 
 async function fetchAllParks() {
@@ -333,36 +160,6 @@ async function fetchWeather() {
 
 // ---- grid view ----
 
-// Walk-throughs, transportation, and landmarks (e.g. Cinderella Castle, Main
-// Street Vehicles) report OPERATING with no wait time and never will — they
-// have no queue to track. Down/Closed/Refurbishment still carry real
-// information, so only this specific combination is filtered out.
-function hasWaitInfo(ride) {
-  return !(ride.status === "OPERATING" && ride.waitTime === null);
-}
-
-// Rides from every park that pass `include`, tagged with their park.
-function ridesAcrossParks(include) {
-  const combined = PARKS.flatMap((park) => {
-    const entry = state.parkData[park.id];
-    if (!entry) return [];
-    return entry.rides.filter(include).map((ride) => ({ ...ride, parkShort: park.short }));
-  });
-  return combined.sort((a, b) => {
-    const aOpen = a.status === "OPERATING" && a.waitTime !== null;
-    const bOpen = b.status === "OPERATING" && b.waitTime !== null;
-    if (aOpen !== bOpen) return aOpen ? -1 : 1;
-    return (b.waitTime ?? -1) - (a.waitTime ?? -1);
-  });
-}
-
-function gridRides() {
-  if (state.activeParkId === ALL_PARKS.id) return ridesAcrossParks(hasWaitInfo);
-  // Favorites show even with no wait info, so a favorited ride never vanishes.
-  if (state.activeParkId === FAVORITES.id) return ridesAcrossParks((ride) => state.favorites.has(ride.id));
-  return state.parkData[state.activeParkId].rides.filter(hasWaitInfo);
-}
-
 function renderGrid() {
   highlightLandmark(null);
   const isCombined = state.activeParkId === ALL_PARKS.id || state.activeParkId === FAVORITES.id;
@@ -371,7 +168,7 @@ function renderGrid() {
     els.grid.innerHTML = '<div class="loading">Loading wait times…</div>';
     return;
   }
-  const rides = gridRides();
+  const rides = gridRides(state);
   if (rides.length === 0) {
     els.grid.innerHTML =
       state.activeParkId === FAVORITES.id
@@ -678,14 +475,6 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-function pad2(n) {
-  return String(n).padStart(2, "0");
-}
-
-function dateKey(date) {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-}
-
 function startOfDay(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -762,44 +551,17 @@ function clearTripDate() {
 }
 
 function renderTripCountdown() {
-  if (!state.tripDate) {
-    els.tripCountdown.hidden = true;
-    return;
-  }
-
-  const todayKey = dateKey(new Date());
-
-  // The trip date has come and gone — auto-clear it rather than showing a
-  // stale countdown forever.
-  if (state.tripDate < todayKey) {
+  const text = state.tripDate ? countdownText(state.tripDate, new Date()) : null;
+  // A trip date that has come and gone is cleared rather than left lingering.
+  if (state.tripDate && text === null) {
     state.tripDate = null;
     localStorage.removeItem("tripDate");
-    els.tripCountdown.hidden = true;
-    return;
   }
-
-  if (state.tripDate === todayKey) {
-    els.tripCountdown.textContent = "See ya real soon!";
-    els.tripCountdown.hidden = false;
-    return;
-  }
-
-  const target = new Date(`${state.tripDate}T00:00:00`);
-  const diffMs = Math.max(0, target - new Date());
-  const totalSeconds = Math.floor(diffMs / 1000);
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  els.tripCountdown.textContent =
-    `Next Magical Day in ${days} Days, ${hours} Hours, ${minutes} Minutes, ${seconds} Seconds`;
-  els.tripCountdown.hidden = false;
+  els.tripCountdown.textContent = text || "";
+  els.tripCountdown.hidden = !text;
 }
 
 // ---- misc ----
-
-const PARK_TIME_ZONE = "America/New_York";
 
 function tickClock() {
   const time = new Date().toLocaleTimeString(DISPLAY_LOCALE, {

@@ -216,9 +216,32 @@ If an update can't be applied cleanly (for example, because files were edited
 directly on the Pi), it's skipped and logged, the Pi keeps its current
 version, and it still reboots.
 
+## Tests
+
+The tests cover the app's decision logic (which slides and rides to show,
+closed parks, favorites, time formatting), the favorites server, and the
+weekly update script. They need only Node.js and Python 3, with nothing to
+install:
+
+```
+node --test tests/logic.test.js
+python3 -m unittest discover -s tests
+bash tests/test_update.sh
+```
+
+GitHub runs them automatically on every push, along with a
+[ShellCheck](https://www.shellcheck.net) lint of the shell scripts. Since
+installed kiosks update themselves from `main` every week, check that the
+tests pass before letting a change sit there.
+
+The page's own code is split in two: `logic.js` holds the parts that can be
+tested without a browser (it never touches the page or the network), and
+`app.js` wires them up to the page.
+
 ## Customizing
 
-- **Parks:** park IDs are listed in the `PARKS` array at the top of `app.js`.
+- **Parks:** park IDs are listed in the `PARKS` array at the top of
+  `logic.js`.
   themeparks.wiki also covers the water parks (Typhoon Lagoon, Blizzard
   Beach) if you want to add them.
 - **Carousel speed:** the `SLIDE_MS` constant near the top of `app.js`

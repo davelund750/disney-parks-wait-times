@@ -1,0 +1,38 @@
+# Runs the tests on every push and pull request. Installed kiosks update
+# themselves from main every week, so a red check here means: don't let that
+# commit sit on main.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: App logic
+        run: node --test tests/logic.test.js
+
+      # The kiosk's browser runs in British English (24-hour by default), so
+      # check that times still come out 12-hour US park time there.
+      - name: App logic, under a British time zone and locale
+        run: node --test tests/logic.test.js
+        env:
+          TZ: Europe/London
+          LANG: en_GB.UTF-8
+
+      - name: Favorites server
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Weekly update script
+        run: bash tests/test_update.sh
+
+      - name: Shell script lint
+        run: shellcheck install.sh kiosk.sh update.sh tests/test_update.sh

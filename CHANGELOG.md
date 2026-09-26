@@ -15,8 +15,13 @@ The project doesn't use version numbers, so sections are dated instead.
 ### Added
 - MIT license.
 - This changelog.
+- Automated tests for the app's logic, the favorites server, and the weekly
+  update script, run by GitHub on every push along with a lint check of the
+  shell scripts.
 
 ### Changed
+- The app's decision logic moved from `app.js` into `logic.js` so it can be
+  tested; the dashboard itself behaves exactly as before.
 - README rewritten for anyone using the project: requirements, a
   not-affiliated-with-Disney disclaimer, data source credits, and a note that
   a kiosk updates from wherever it was cloned (so forks should clone their
