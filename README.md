@@ -207,7 +207,9 @@ build-up on a small Pi.
   following Sunday, so only push changes you've tested.
 - **Update now:** `sudo systemctl start wdw-update.service` (the Pi reboots
   when done).
-- **See what happened:** `cat /var/log/wdw-update.log`
+- **See what changed:** [CHANGELOG.md](CHANGELOG.md) lists notable changes
+  by date.
+- **See what happened on a Pi:** `cat /var/log/wdw-update.log`
 - **See when it runs next:** `systemctl list-timers wdw-update.timer`
 
 If an update can't be applied cleanly (for example, because files were edited
