@@ -13,6 +13,21 @@ The project doesn't use version numbers, so sections are dated instead.
 ## 2026-09-26
 
 ### Added
+- Shows and meet-and-greets: parades, stage shows, fireworks, and character
+  appearances now appear with their next time ("Show 2:00 PM" / "Next 2:00
+  PM" in the grid, "Next show at 2:00 PM" in the carousel), then "No more
+  shows" after the last one. Those that run over a window instead show a
+  wait time, "Operating", or "Opens *time*". This includes The American
+  Adventure, whose performance times were already in the data. Shows only for
+  special ticketed events are left out automatically.
+- Ignoring items: a "−" button on each grid card and a "− Ignore" button in
+  the carousel hide anything (ride, show, or exhibit). Ignored items leave
+  the carousel and move to the grid's Inactive section, where "+" brings them
+  back. The list is saved on each kiosk, like favorites.
+- Grid groups: the grid is now an accordion with Active and Inactive
+  sections, each split into Rides & Attractions, Shows, Meet & Greets, and
+  Exhibits & Walk-throughs, with an Ignore all / Activate all button per
+  group.
 - MIT license.
 - This changelog.
 - Automated tests for the app's logic, the favorites server, and the weekly

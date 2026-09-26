@@ -93,6 +93,111 @@ test("weather codes map to icons", () => {
   assert.equal(L.weatherIcon(95), "⛈️");
 });
 
+// ---- shows ----
+
+const show = (name, times, extra = {}) => ({
+  id: name, name, entityType: "SHOW", status: "OPERATING",
+  showtimes: times.map((t) => ({ type: "Performance Time", startTime: `2026-09-26T${t}:00-04:00`, endTime: `2026-09-26T${t}:00-04:00` })),
+  ...extra,
+});
+
+test("which shows are listed: anything with times for regular guests today", () => {
+  assert.equal(L.isListedShow(show("Festival of the Lion King", ["14:00"])), true);
+  assert.equal(L.isListedShow(show("Meet Pluto Near EPCOT Main Entrance", ["14:00"])), true);
+  // Party-only shows list their times under a different type.
+  const party = show("Boo-To-You Parade", []);
+  party.showtimes = [{ type: "Special Ticketed Event", startTime: "2026-09-26T20:00:00-04:00" }];
+  assert.equal(L.isListedShow(party), false);
+  // Nothing scheduled today (e.g. a festival's show out of season).
+  assert.equal(L.isListedShow(show("Garden Rocks", [])), false);
+  // Rides aren't shows.
+  assert.equal(L.isListedShow({ entityType: "ATTRACTION", name: "Space Mountain" }), false);
+});
+
+test("a show's times are performances only if zero-length; longer ones are open windows", () => {
+  const withSlots = (name, ...slots) => ({ entityType: "SHOW", name, status: "OPERATING",
+    showtimes: slots.map(([start, end]) => ({ type: "Performance Time",
+      startTime: `2026-09-26T${start}:00-04:00`, endTime: `2026-09-26T${end}:00-04:00` })) });
+  assert.notEqual(L.performanceTimes(withSlots("Parade", ["14:00", "14:00"])), null);
+  // Meet Figment's "performances" are really 9:00-12:30 and 1:30-5:00.
+  const figment = withSlots("Meet Figment", ["09:00", "12:30"], ["13:30", "17:00"]);
+  assert.equal(L.performanceTimes(figment), null);
+  const now = eastern("2026-09-26T12:45:00");
+  const [parsed] = L.parseLiveRides({ liveData: [{ ...figment, id: "fig", status: "CLOSED" }] }, now);
+  assert.equal(L.rideLabel(parsed).value, "Opens 1:30 PM");
+});
+
+test("groups: rides (with a line), shows, meet-and-greets, exhibits (no line)", () => {
+  const now = eastern("2026-09-26T13:20:00");
+  const rides = L.parseLiveRides({
+    liveData: [
+      { id: "ride", name: "Space Mountain", entityType: "ATTRACTION", status: "OPERATING", queue: { STANDBY: { waitTime: 30 } } },
+      { id: "theater", name: "Hall of Presidents", entityType: "ATTRACTION", status: "OPERATING", queue: { STANDBY: { waitTime: null } } },
+      { id: "castle", name: "Cinderella Castle", entityType: "ATTRACTION", status: "OPERATING", queue: null },
+      { id: "adventure", name: "The American Adventure", entityType: "ATTRACTION", status: "OPERATING",
+        operatingHours: ["14:00", "14:45"].map((t) => ({ startTime: `2026-09-26T${t}:00-04:00`, endTime: `2026-09-26T${t}:00-04:00` })) },
+      show("Festival of the Lion King", ["14:00"]),
+      show("Meet Donald Duck in Mexico", ["14:00"]),
+    ],
+  }, now);
+  const category = Object.fromEntries(rides.map((r) => [r.id, r.category]));
+  assert.deepEqual(category, {
+    ride: "ride", theater: "ride", castle: "exhibit", adventure: "show",
+    "Festival of the Lion King": "show", "Meet Donald Duck in Mexico": "meet",
+  });
+});
+
+test("meet-and-greets say 'Next <time>' and 'No more today'", () => {
+  const now = eastern("2026-09-26T13:20:00");
+  const [meet] = L.parseLiveRides({ liveData: [show("Meet Donald Duck", ["14:00"])] }, now);
+  assert.equal(L.rideLabel(meet).value, "Next 2:00 PM");
+  assert.equal(L.carouselLaterText(meet), "Next appearance at 2:00 PM");
+  const [over] = L.parseLiveRides({ liveData: [show("Meet Donald Duck", ["11:00"])] }, now);
+  assert.equal(L.rideLabel(over).value, "No more today");
+});
+
+test("performance times come from showtimes, or an attraction's zero-length hours", () => {
+  const times = (e) => L.performanceTimes(e)?.map((t) => L.formatTimeOfDay(t));
+  assert.deepEqual(times(show("Parade", ["15:00", "14:00"])), ["2:00 PM", "3:00 PM"]);
+  // The American Adventure lists each performance as a zero-length window.
+  const adventure = { entityType: "ATTRACTION", operatingHours: ["11:45", "12:30"].map((t) => ({
+    startTime: `2026-09-26T${t}:00-04:00`, endTime: `2026-09-26T${t}:00-04:00` })) };
+  assert.deepEqual(times(adventure), ["11:45 AM", "12:30 PM"]);
+  // Ordinary hours aren't a performance schedule.
+  assert.equal(L.performanceTimes({ entityType: "ATTRACTION", operatingHours: [
+    { startTime: "2026-09-26T09:00:00-04:00", endTime: "2026-09-26T21:00:00-04:00" }] }), null);
+});
+
+test("shows read 'Show <next time>', then 'No more shows', sorted with later-today items", () => {
+  const now = eastern("2026-09-26T13:20:00");
+  const rides = L.parseLiveRides({
+    liveData: [
+      show("Fireworks", ["21:30"]),
+      show("Matinee", ["11:00", "12:30"]),
+      show("Parade", ["14:00", "15:00"]),
+      show("Meet Mickey", ["14:00"]),
+      { id: "later", name: "Later", entityType: "ATTRACTION", status: "CLOSED",
+        operatingHours: [{ startTime: "2026-09-26T14:30:00-04:00", endTime: "2026-09-26T20:00:00-04:00" }] },
+      { id: "ride", name: "Ride", entityType: "ATTRACTION", status: "OPERATING", queue: { STANDBY: { waitTime: 20 } } },
+    ],
+  }, now);
+  const label = (r) => L.rideLabel(r).value;
+  // The 2:00 parade and meet-and-greet sort before the ride opening at 2:30,
+  // then the fireworks; the finished matinee goes last.
+  assert.deepEqual(rides.map((r) => `${r.name}: ${label(r)}`), [
+    "Ride: 20", "Parade: Show 2:00 PM", "Meet Mickey: Next 2:00 PM", "Later: Opens 2:30 PM",
+    "Fireworks: Show 9:30 PM", "Matinee: No more shows",
+  ]);
+});
+
+test("a show that's down or closed says so", () => {
+  const now = eastern("2026-09-26T13:20:00");
+  const [down] = L.parseLiveRides({ liveData: [show("A", ["14:00"], { status: "DOWN" })] }, now);
+  const [closed] = L.parseLiveRides({ liveData: [show("B", ["14:00"], { status: "CLOSED" })] }, now);
+  assert.equal(L.rideLabel(down).value, "Down");
+  assert.equal(L.rideLabel(closed).value, "Closed");
+});
+
 // ---- times ----
 
 test("times are 12-hour park time, whatever the device's locale or time zone", () => {
@@ -152,7 +257,11 @@ test("park hours: missing schedule data doesn't crash", () => {
 
 // ---- slides and grid ----
 
-const ride = (id, status, waitTime, extra = {}) => ({ id, name: `Ride ${id}`, status, waitTime, hasLine: true, ...extra });
+const ride = (id, status, waitTime, extra = {}) => ({
+  id, name: `Ride ${id}`, status, waitTime, hasLine: true,
+  category: extra.isShow ? "show" : extra.hasLine === false ? "exhibit" : "ride",
+  ...extra,
+});
 const open = { isOpenNow: true, nextOpenLabel: null };
 const closed = (nextOpenLabel) => ({ isOpenNow: false, nextOpenLabel });
 
@@ -204,6 +313,21 @@ test("items opening later today get a carousel slide once their park is open", (
   assert.deepEqual(describe(L.buildSlides(sample({ activeParkId: EP.id }))), ["EP closed"]);
 });
 
+test("shows with a performance left get a 'Next show at' slide; finished ones don't", () => {
+  const data = sample({ activeParkId: HS.id });
+  data.parkData[HS.id].rides.push(
+    ride("parade", "OPERATING", null, { hasLine: false, isShow: true, nextShow: "2:00 PM" }),
+    ride("matinee", "OPERATING", null, { hasLine: false, isShow: true, nextShow: null })
+  );
+  const slides = L.buildSlides(data);
+  assert.deepEqual(describe(slides), ["hs1", "hs2", "hs3", "parade"]);
+  assert.equal(L.carouselLaterText(slides.at(-1)), "Next show at 2:00 PM");
+  // A closed park's upcoming shows wait behind its closed slide.
+  const closedData = sample({ activeParkId: AK.id });
+  closedData.parkData[AK.id].rides.push(ride("lionking", "OPERATING", null, { isShow: true, nextShow: "10:00 AM" }));
+  assert.deepEqual(describe(L.buildSlides(closedData)), ["AK closed"]);
+});
+
 test("a closed park whose only running items have no wait gets its closed slide", () => {
   const data = sample({ activeParkId: AK.id });
   data.parkData[AK.id].rides.push(ride("ak3", "OPERATING", null)); // stale "Operating" show
@@ -250,6 +374,49 @@ test("Favorites: a closed park's favorites give way to its closed slide", () => 
 
 test("Favorites with none saved shows nothing", () => {
   assert.deepEqual(L.buildSlides(sample({ activeParkId: L.FAVORITES.id })), []);
+});
+
+test("ignored items never get a carousel slide, on any tab", () => {
+  const ignored = new Set(["hs1", "mk1"]);
+  assert.deepEqual(describe(L.buildSlides(sample({ ignored }))), ["EP closed", "hs2", "hs3", "AK closed"]);
+  assert.deepEqual(describe(L.buildSlides(sample({ activeParkId: HS.id, ignored }))), ["hs2", "hs3"]);
+  // A favorite that's ignored stays starred, but leaves the Favorites carousel.
+  const favorites = new Set(["hs1", "hs2"]);
+  assert.deepEqual(describe(L.buildSlides(sample({ activeParkId: L.FAVORITES.id, favorites, ignored }))), ["hs2"]);
+});
+
+test("ignoring a closed park's only running ride doesn't make it look closed", () => {
+  // MK is closed to regular guests, but mk1 is running (an event night).
+  const slides = L.buildSlides(sample({ activeParkId: MK.id, ignored: new Set(["mk1"]) }));
+  assert.deepEqual(describe(slides), []);
+});
+
+test("grid: ignored items move to their own section, still in display order", () => {
+  const { shown, ignored } = L.gridSections(sample({ activeParkId: HS.id, ignored: new Set(["hs1", "hs4"]) }));
+  assert.deepEqual(shown.map((r) => r.id), ["hs2", "hs3"]);
+  assert.deepEqual(ignored.map((r) => r.id), ["hs1", "hs4"]);
+  // Nothing ignored (or no list at all): everything is shown.
+  assert.deepEqual(L.gridSections(sample({ activeParkId: HS.id })).ignored, []);
+});
+
+test("operating shows and meet-and-greets get a slide even without a line", () => {
+  const data = sample({ activeParkId: HS.id });
+  data.parkData[HS.id].rides.push(
+    ride("jessie", "OPERATING", null, { hasLine: false, category: "show" }), // a show that runs over a window
+    ride("olaf", "OPERATING", null, { hasLine: true, category: "meet" }),
+    ride("pixar", "OPERATING", null, { hasLine: false, category: "meet" })
+  );
+  assert.deepEqual(describe(L.buildSlides(data)), ["hs1", "hs2", "hs3", "jessie", "olaf", "pixar"]);
+});
+
+test("grid groups: Active and Inactive, each split by category in order, empty groups left out", () => {
+  const data = sample({ activeParkId: HS.id, ignored: new Set(["hs2", "hs4"]) });
+  data.parkData[HS.id].rides.push(ride("parade", "OPERATING", null, { hasLine: false, isShow: true, nextShow: "2:00 PM" }));
+  const { active, inactive } = L.gridGroups(data);
+  const outline = (groups) => groups.map((g) => `${g.label}: ${g.rides.map((r) => r.id).join(",")}`);
+  assert.deepEqual(outline(active), ["Rides & Attractions: hs1,hs3", "Shows: parade"]);
+  assert.deepEqual(outline(inactive), ["Rides & Attractions: hs2", "Exhibits & Walk-throughs: hs4"]);
+  assert.deepEqual(L.gridGroups(sample({ activeParkId: HS.id })).inactive, []);
 });
 
 test("grid: All Parks lists everything, tagged, in display order", () => {

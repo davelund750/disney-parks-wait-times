@@ -5,9 +5,10 @@ const TABS = [ALL_PARKS, FAVORITES, ...PARKS];
 const REFRESH_MS = 5 * 60 * 1000; // themeparks.wiki data updates every few minutes
 const SLIDE_MS = 4500; // how long each carousel slide is shown
 const API_BASE = "https://api.themeparks.wiki/v1";
-// Served by server.py, which keeps favorites in a file on the Pi so they
-// survive the kiosk's browser profile being wiped at every boot.
-const FAVORITES_API = "/api/favorites";
+// Saved lists (favorites, ignored items) are served by server.py, which
+// keeps them in files on the Pi so they survive the kiosk's browser profile
+// being wiped at every boot.
+const listApi = (name) => `/api/${name}`;
 
 // The four parks sit a few miles apart in Orlando, close enough to share one
 // weather reading. Coordinates are roughly the center of Walt Disney World.
@@ -29,6 +30,7 @@ const state = {
   timer: null,
   tripDate: localStorage.getItem("tripDate") || null, // "YYYY-MM-DD", local calendar day
   favorites: new Set(), // ride entity ids
+  ignored: new Set(), // ride entity ids hidden from the carousel
 };
 
 // Month currently shown in the date-picker modal (not persisted).
@@ -47,6 +49,7 @@ const els = {
   carouselName: document.getElementById("carouselName"),
   carouselWait: document.getElementById("carouselWait"),
   carouselFav: document.getElementById("carouselFav"),
+  carouselIgnore: document.getElementById("carouselIgnore"),
   carouselPosition: document.getElementById("carouselPosition"),
   carouselPlay: document.getElementById("carouselPlay"),
   carouselPrev: document.getElementById("carouselPrev"),
@@ -168,42 +171,111 @@ function renderGrid() {
     els.grid.innerHTML = '<div class="loading">Loading wait times…</div>';
     return;
   }
-  const rides = gridRides(state);
-  if (rides.length === 0) {
+  const { active, inactive } = gridGroups(state);
+  els.grid.innerHTML = "";
+  if (active.length === 0) {
     els.grid.innerHTML =
       state.activeParkId === FAVORITES.id
         ? '<div class="error">No favorites yet. Tap ☆ on any ride to add it.</div>'
         : '<div class="error">No attraction data available.</div>';
-    return;
   }
-  els.grid.innerHTML = "";
-  for (const ride of rides) {
-    const card = document.createElement("div");
-    card.className = "ride-card";
+  renderGridSection("active", "Active", active);
+  // Ignored items get their own section at the bottom, to bring them back.
+  renderGridSection("inactive", "Inactive", inactive);
+}
 
-    // Combined views (All Parks, Favorites) tag each card with its park.
-    if (ride.parkShort) {
-      const tag = document.createElement("div");
-      tag.className = "ride-park-tag";
-      tag.textContent = ride.parkShort;
-      card.appendChild(tag);
+// One section of the grid: a heading, then each group as a collapsible
+// header (with a button to ignore or reactivate the whole group) followed by
+// its cards when open.
+function renderGridSection(section, title, groups) {
+  if (groups.length === 0) return;
+  const count = groups.reduce((sum, group) => sum + group.rides.length, 0);
+  const heading = document.createElement("div");
+  heading.className = "grid-section";
+  heading.textContent = `${title} (${count})`;
+  els.grid.appendChild(heading);
+
+  for (const group of groups) {
+    const open = isGroupOpen(section, group.id);
+    const header = document.createElement("div");
+    header.className = "grid-group";
+
+    const toggle = document.createElement("button");
+    toggle.className = "group-toggle";
+    toggle.textContent = `${open ? "▾" : "▸"} ${group.label} (${group.rides.length})`;
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.addEventListener("click", () => {
+      setGroupOpen(section, group.id, !open);
+      renderGrid();
+    });
+
+    const action = document.createElement("button");
+    action.className = "group-action";
+    action.textContent = section === "active" ? "Ignore all" : "Activate all";
+    action.addEventListener("click", () =>
+      setIgnored(group.rides.map((ride) => ride.id), section === "active")
+    );
+
+    header.append(toggle, action);
+    els.grid.appendChild(header);
+    if (open) {
+      for (const ride of group.rides) els.grid.appendChild(rideCard(ride, section === "inactive"));
     }
-
-    const name = document.createElement("div");
-    name.className = "ride-name";
-    name.textContent = ride.name;
-
-    const wait = document.createElement("div");
-    const { value, unit } = rideLabel(ride);
-    // Status words ("Operating", "Opens 10:00 AM", ...) are sized to fit the card.
-    wait.className = "ride-wait " + rideBadgeClass(ride) + (unit ? "" : " status-text");
-    wait.innerHTML = `<span class="value">${value}</span><span class="unit">${unit}</span>`;
-
-    card.appendChild(name);
-    card.appendChild(wait);
-    card.appendChild(favoriteButton(ride.id));
-    els.grid.appendChild(card);
   }
+}
+
+// Which grid groups are open, remembered in this browser. Active groups
+// start open and Inactive ones closed.
+function groupOpenState() {
+  try {
+    return JSON.parse(localStorage.getItem("gridGroupsOpen") || "{}");
+  } catch (err) {
+    return {};
+  }
+}
+
+function isGroupOpen(section, groupId) {
+  const saved = groupOpenState()[`${section}:${groupId}`];
+  return saved === undefined ? section === "active" : saved;
+}
+
+function setGroupOpen(section, groupId, open) {
+  const saved = groupOpenState();
+  saved[`${section}:${groupId}`] = open;
+  try {
+    localStorage.setItem("gridGroupsOpen", JSON.stringify(saved));
+  } catch (err) {
+    // Not saved; it still applies until the page reloads.
+  }
+}
+
+function rideCard(ride, isIgnored) {
+  const card = document.createElement("div");
+  card.className = "ride-card" + (isIgnored ? " ignored" : "");
+
+  // Combined views (All Parks, Favorites) tag each card with its park.
+  if (ride.parkShort) {
+    const tag = document.createElement("div");
+    tag.className = "ride-park-tag";
+    tag.textContent = ride.parkShort;
+    card.appendChild(tag);
+  }
+
+  const name = document.createElement("div");
+  name.className = "ride-name";
+  name.textContent = ride.name;
+
+  const wait = document.createElement("div");
+  const { value, unit } = rideLabel(ride);
+  // Status words ("Operating", "Opens 10:00 AM", ...) are sized to fit the card.
+  wait.className = "ride-wait " + rideBadgeClass(ride) + (unit ? "" : " status-text");
+  wait.innerHTML = `<span class="value">${value}</span><span class="unit">${unit}</span>`;
+
+  card.appendChild(name);
+  card.appendChild(wait);
+  card.appendChild(favoriteButton(ride.id));
+  card.appendChild(ignoreButton(ride.id));
+  return card;
 }
 
 // Touch already scrolls the grid natively; this just adds the same
@@ -215,8 +287,8 @@ function initGridDragScroll() {
   let startScrollTop = 0;
 
   els.grid.addEventListener("pointerdown", (e) => {
-    // Capturing the pointer would swallow clicks on a card's favorite star.
-    if (e.pointerType !== "mouse" || e.target.closest(".fav-star")) return;
+    // Capturing the pointer would swallow clicks on a card's buttons.
+    if (e.pointerType !== "mouse" || e.target.closest("button")) return;
     dragging = true;
     startY = e.clientY;
     startScrollTop = els.grid.scrollTop;
@@ -277,6 +349,7 @@ function renderCarouselSlide() {
     els.carouselPosition.textContent = "";
     els.carouselHours.hidden = true;
     els.carouselFav.hidden = true;
+    els.carouselIgnore.hidden = true;
     if (state.activeParkId === FAVORITES.id && Object.keys(state.parkData).length) {
       els.carouselName.textContent = state.favorites.size
         ? "None of your favorites are open right now"
@@ -296,14 +369,19 @@ function renderCarouselSlide() {
     els.carouselWait.className = "carousel-wait closed";
     els.carouselWait.innerHTML = `<span class="value">Opening ${slide.nextOpenLabel}</span>`;
     els.carouselFav.hidden = true;
+    els.carouselIgnore.hidden = true;
   } else {
     renderFavoriteButton(els.carouselFav, slide.id, " Favorite");
     els.carouselFav.hidden = false;
+    els.carouselIgnore.dataset.rideId = slide.id;
+    els.carouselIgnore.hidden = false;
     els.carouselName.textContent = slide.name;
-    if (slide.status === "CLOSED" && slide.opensAt) {
-      // A time is too wide for the giant wait-number style.
+    const later = carouselLaterText(slide);
+    if (later) {
+      // "Opens at 10:00 AM" / "Next show at 2:00 PM": too wide for the giant
+      // wait-number style.
       els.carouselWait.className = "carousel-wait opens";
-      els.carouselWait.innerHTML = `<span class="value">Opens at ${slide.opensAt}</span>`;
+      els.carouselWait.innerHTML = `<span class="value">${later}</span>`;
     } else {
       const { value, unit } = rideLabel(slide);
       // Status words ("Operating", "Down") are too wide for the giant number size.
@@ -347,38 +425,37 @@ function setPlaying(playing) {
   }
 }
 
-// ---- favorites ----
+// ---- saved lists: favorites and ignored items ----
 
-async function loadFavorites() {
+async function loadSavedList(name) {
   let ids;
   try {
-    const res = await fetch(FAVORITES_API, { cache: "no-store" });
+    const res = await fetch(listApi(name), { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     ids = await res.json();
   } catch (err) {
-    // No favorites API (e.g. served by a plain static server): fall back to
+    // No saved-list API (e.g. served by a plain static server): fall back to
     // the browser, which works but is forgotten whenever the profile is wiped.
     try {
-      ids = JSON.parse(localStorage.getItem("favorites") || "[]");
+      ids = JSON.parse(localStorage.getItem(name) || "[]");
     } catch (parseErr) {
       ids = [];
     }
   }
-  state.favorites = new Set(Array.isArray(ids) ? ids : []);
-  onFavoritesChanged();
+  return new Set(Array.isArray(ids) ? ids : []);
 }
 
-async function saveFavorites() {
-  const ids = [...state.favorites];
+async function saveSavedList(name, set) {
+  const ids = [...set];
   try {
-    const res = await fetch(FAVORITES_API, {
+    const res = await fetch(listApi(name), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(ids),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
   } catch (err) {
-    localStorage.setItem("favorites", JSON.stringify(ids));
+    localStorage.setItem(name, JSON.stringify(ids));
   }
 }
 
@@ -388,7 +465,7 @@ function toggleFavorite(rideId) {
   } else {
     state.favorites.add(rideId);
   }
-  saveFavorites();
+  saveSavedList("favorites", state.favorites);
   onFavoritesChanged();
 }
 
@@ -418,6 +495,54 @@ function favoriteButton(rideId) {
   btn.className = "fav-star";
   renderFavoriteButton(btn, rideId);
   btn.addEventListener("click", () => toggleFavorite(rideId));
+  return btn;
+}
+
+// Ignores (or reactivates) several items at once, e.g. a whole grid group.
+// Only these items change: anything added to the group later starts active.
+function setIgnored(rideIds, ignore) {
+  for (const id of rideIds) {
+    if (ignore) state.ignored.add(id);
+    else state.ignored.delete(id);
+  }
+  saveSavedList("ignored", state.ignored);
+  buildSequence();
+  if (state.view === "grid") {
+    renderGrid();
+  } else {
+    renderCarouselSlide();
+    startTimer();
+  }
+}
+
+function toggleIgnored(rideId) {
+  if (state.ignored.has(rideId)) {
+    state.ignored.delete(rideId);
+    buildSequence();
+  } else {
+    state.ignored.add(rideId);
+    // Take it out of the current rotation without reshuffling the rest.
+    state.sequence = state.sequence.filter((slide) => slide.id !== rideId);
+    if (state.index >= state.sequence.length) state.index = 0;
+  }
+  saveSavedList("ignored", state.ignored);
+  if (state.view === "grid") {
+    renderGrid();
+  } else {
+    renderCarouselSlide();
+    startTimer();
+  }
+}
+
+// The grid card's "−" (ignore) or "+" (bring back) button.
+function ignoreButton(rideId) {
+  const isIgnored = state.ignored.has(rideId);
+  const btn = document.createElement("button");
+  btn.className = "ignore-btn";
+  btn.textContent = isIgnored ? "+" : "−";
+  btn.setAttribute("aria-label", isIgnored ? "Stop ignoring" : "Ignore");
+  btn.title = isIgnored ? "Stop ignoring" : "Ignore";
+  btn.addEventListener("click", () => toggleIgnored(rideId));
   return btn;
 }
 
@@ -603,6 +728,7 @@ function init() {
     );
   }
   els.carouselFav.addEventListener("click", () => toggleFavorite(els.carouselFav.dataset.rideId));
+  els.carouselIgnore.addEventListener("click", () => toggleIgnored(els.carouselIgnore.dataset.rideId));
   els.carouselPlay.textContent = "⏸";
   els.carouselPlay.setAttribute("aria-label", "Pause");
 
@@ -622,7 +748,11 @@ function init() {
   renderTripCountdown();
   setInterval(renderTripCountdown, 1000);
 
-  loadFavorites().then(() => selectTab(state.favorites.size ? FAVORITES.id : ALL_PARKS.id));
+  Promise.all([loadSavedList("favorites"), loadSavedList("ignored")]).then(([favorites, ignored]) => {
+    state.favorites = favorites;
+    state.ignored = ignored;
+    selectTab(state.favorites.size ? FAVORITES.id : ALL_PARKS.id);
+  });
   fetchAllParks();
   setInterval(fetchAllParks, REFRESH_MS);
 

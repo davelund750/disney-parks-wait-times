@@ -90,7 +90,7 @@ class ServerTest(unittest.TestCase):
         status, _ = self.request("PUT", "/api/favorites", ["x" * 70000])
         self.assertEqual(status, 413)
 
-    def test_only_the_favorites_path_accepts_saves(self):
+    def test_only_the_list_paths_accept_saves(self):
         status, _ = self.request("PUT", "/index.html", ["a"])
         self.assertEqual(status, 404)
 
@@ -101,6 +101,15 @@ class ServerTest(unittest.TestCase):
                     f.write(content)
                 expected = ["ok"] if content.startswith('["ok"') else []
                 self.assertEqual(self.request("GET", "/api/favorites"), (200, expected))
+
+    def test_ignored_list_is_saved_separately_from_favorites(self):
+        self.assertEqual(self.request("GET", "/api/ignored"), (200, []))
+        self.request("PUT", "/api/favorites", ["fav"])
+        self.assertEqual(self.request("PUT", "/api/ignored", ["x", "x", "y"]), (200, ["x", "y"]))
+        self.assertEqual(self.request("GET", "/api/ignored"), (200, ["x", "y"]))
+        self.assertEqual(self.request("GET", "/api/favorites"), (200, ["fav"]))
+        with open(os.path.join(self.data_dir.name, "ignored.json")) as f:
+            self.assertEqual(json.load(f), ["x", "y"])
 
     def test_the_app_itself_is_served(self):
         status, body = self.request("GET", "/")

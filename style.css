@@ -366,10 +366,11 @@ main {
 .badge-open .value { color: var(--green); }
 .badge-opens .value { color: var(--text-dim); }
 
-/* Status words fill the card's width at one size; "Opens 12:00 PM" is the
-   longest, so this is sized to fit it. */
+/* Status words fill the card's width at one size, leaving room for the
+   ignore button in the corner; "Opens 12:00 PM" is the longest, so this is
+   sized to fit it. */
 .ride-wait.status-text .value {
-  font-size: clamp(13px, 11cqi, 30px);
+  font-size: clamp(12px, calc((100cqi - 44px) / 7.8), 30px);
   white-space: nowrap;
 }
 .badge-yellow .value { color: var(--yellow); }
@@ -690,4 +691,83 @@ main {
 body.kiosk,
 body.kiosk * {
   cursor: none !important;
+}
+
+/* ---- ignoring items ---- */
+.ignore-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Grid: a round "−" / "+" in the card's bottom-right corner. */
+.ride-card .ignore-btn {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 20px;
+}
+
+.ride-card.ignored {
+  opacity: 0.55;
+}
+
+.grid-section {
+  grid-column: 1 / -1;
+  margin-top: 1.5vh;
+  padding-top: 1vh;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: clamp(12px, 1.6vw, 15px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Carousel: a small pill at the bottom of the card. */
+.carousel-ignore {
+  position: relative;
+  z-index: 1;
+  padding: 0.6vh 1.6vw;
+  border-radius: 999px;
+  font-size: clamp(11px, 1.5vw, 14px);
+  font-weight: 700;
+}
+
+/* ---- grid groups (accordion) ---- */
+.grid-group {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1vw;
+  padding: 0.6vh 0;
+}
+
+.group-toggle {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: clamp(13px, 1.9vw, 18px);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  padding: 0.6vh 0;
+}
+
+.group-action {
+  flex: 0 0 auto;
+  padding: 0.6vh 1.6vw;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: clamp(11px, 1.5vw, 14px);
+  font-weight: 700;
+  cursor: pointer;
 }

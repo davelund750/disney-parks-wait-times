@@ -36,9 +36,9 @@ Toggle between them with the button in the top-right corner.
   auto-advancing every ~4.5 seconds. Tap the arrows to move forward or back,
   or the round button to pause. On All Parks, rides are shuffled so the loop
   jumps between parks instead of finishing one park before starting the next.
-- **Grid**: everything in the current selection at once, rides, shows, and
-  exhibits alike. On All Parks and Favorites, each card is tagged with its
-  park (e.g. "MK").
+- **Grid**: everything in the current selection at once, grouped (see
+  [Grid groups](#grid-groups)). On All Parks and Favorites, each card is
+  tagged with its park (e.g. "MK").
 
 Each item shows one of:
 
@@ -49,15 +49,49 @@ Each item shows one of:
 - **Down**: temporarily not running;
 - **Opens *time***: opening later today, such as a show that starts after the
   park opens;
+- **Show *time*** (**Next *time*** for a meet-and-greet): the next
+  performance or appearance today;
+- **No more shows** (**No more today**): the last one today has passed;
 - **Closed**: not open today (or under refurbishment).
 
-The grid lists everything, in that order. The carousel shows items with a
-wait time, down rides, items opening later today ("Opens at 11:45 AM"), and
-"Operating" items that have a standby line (rides and shows). Exhibits and
-walk-throughs, which never have a line, stay in the grid so they don't crowd
-the rotation, unless you star one, which adds it to the Favorites carousel.
-The data has no "show" or "walk-through" type, so whether an item has a
-standby line is how the app tells them apart.
+Within each grid group, items are listed in that order (upcoming shows and
+openings soonest first). The carousel shows items with a wait time, down
+rides, items opening later today ("Opens at 11:45 AM"), shows and
+meet-and-greets still to come ("Next show at 2:00 PM"), and "Operating"
+rides, shows, and meet-and-greets. Exhibits and walk-throughs stay in the
+grid so they don't crowd the rotation, unless you star one, which adds it to
+the Favorites carousel.
+
+### Grid groups
+
+The grid is a vertical accordion. It has two sections, **Active** and
+**Inactive** (items you've [ignored](#ignoring-items)), each split into
+groups:
+
+- **Rides & Attractions**: attractions with a standby line, including
+  theater shows like The Hall of Presidents;
+- **Shows**: parades, stage shows, fireworks, and anything else with
+  scheduled performances (including The American Adventure);
+- **Meet & Greets**: character appearances;
+- **Exhibits & Walk-throughs**: attractions with no line, such as Cinderella
+  Castle or EPCOT's galleries.
+
+Tap a group's name to open or close it; Active groups start open and
+Inactive ones closed, and each device remembers your choice. Each group has
+an **Ignore all** (or **Activate all**) button. The data has no "ride",
+"show", or "walk-through" type for attractions, so the app sorts them by
+whether they have a standby line or a schedule of performances.
+
+### Shows
+
+Parades, stage shows, fireworks, meet-and-greets, and other entertainment
+appear alongside the rides, with their next performance time. A show that
+runs over a window rather than at set times (like a meet-and-greet from 9:00
+to 5:00) shows a wait time, "Operating", or "Opens *time*", like a ride.
+Everything with times for regular guests today is included; shows that only
+perform for a separately ticketed event, like a Halloween party, are left
+out. To hide any other show, such as background musicians,
+[ignore it](#ignoring-items).
 
 ### Closed parks
 
@@ -76,6 +110,20 @@ the device running `server.py`, in
 `~/.local/share/wdw-wait-times/favorites.json` (set `WDW_DATA_DIR` to change
 the folder). Keeping them outside the project folder means they survive
 reboots and updates.
+
+### Ignoring items
+
+Anything can be hidden: a ride, a show, or an exhibit. Tap the "−" in a grid
+card's bottom corner, or the "− Ignore" button under a carousel slide, or
+**Ignore all** on a grid group. An ignored item leaves the carousel and moves
+to the grid's Inactive section, where its "+" (or the group's **Activate
+all**) brings it back. Ignoring a group only affects what's in it now:
+anything that appears later starts out active. Ignoring a favorite keeps it
+starred; it's just hidden.
+
+Like favorites, the ignored list is saved on the device running
+`server.py`, in `~/.local/share/wdw-wait-times/ignored.json`, so each kiosk
+keeps its own list across reboots and updates.
 
 ### Weather, park hours, and trip countdown
 

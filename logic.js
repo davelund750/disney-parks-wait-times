@@ -39,45 +39,88 @@ function weatherIcon(code) {
   return "\u{1F324}️";
 }
 
-// Color class for a ride's status: green/yellow/red by wait time, green for
-// operating with no wait posted, a lighter gray for opening later today, gray for
-// anything else not running.
-function rideBadgeClass(ride) {
-  if (ride.status !== "OPERATING") return ride.opensAt && ride.status === "CLOSED" ? "badge-opens" : "badge-gray";
-  if (ride.waitTime === null || ride.waitTime === undefined) return "badge-open";
-  if (ride.waitTime <= 20) return "badge-green";
-  if (ride.waitTime <= 45) return "badge-yellow";
-  return "badge-red";
-}
-
-// What a ride's card shows in place of a wait: the wait in minutes (`unit`
-// "min"), or a status: "Operating" (running, no wait posted), "Down",
-// "Opens <time>" (later today), or "Closed".
-function rideLabel(ride) {
-  if (ride.status === "DOWN") return { value: "Down", unit: "" };
-  if (ride.status === "OPERATING") {
-    return ride.waitTime !== null && ride.waitTime !== undefined
-      ? { value: String(ride.waitTime), unit: "min" }
-      : { value: "Operating", unit: "" };
+// Every item (ride, show, or exhibit) is in exactly one display state; its
+// label, color, sort position, and carousel slot all follow from it.
+//   wait        running, wait posted             "35 min"
+//   operating   running, no wait posted          "Operating"
+//   down        temporarily not running          "Down"
+//   opensLater  closed now, opens later today    "Opens 10:00 AM"
+//   show        next performance later today     "Show 2:00 PM" ("Next 2:00 PM"
+//                                                for a meet-and-greet)
+//   showsOver   no performances left today       "No more shows" ("No more today")
+//   closed      anything else                    "Closed"
+function rideState(ride) {
+  if (ride.status === "DOWN") return "down";
+  if (ride.isShow) {
+    if (ride.status === "CLOSED" || ride.status === "REFURBISHMENT") return "closed";
+    return ride.nextShow ? "show" : "showsOver";
   }
-  if (ride.opensAt) return { value: `Opens ${ride.opensAt}`, unit: "" };
-  return { value: "Closed", unit: "" };
+  if (ride.status === "OPERATING") {
+    return ride.waitTime !== null && ride.waitTime !== undefined ? "wait" : "operating";
+  }
+  if (ride.status === "CLOSED" && ride.opensAt) return "opensLater";
+  return "closed";
 }
 
-// Sort order: rides with a wait (longest first), then operating with no wait,
-// then down, then opening later today (soonest first), then closed.
-function rideRank(ride) {
-  if (ride.status === "OPERATING") return ride.waitTime !== null ? 0 : 1;
-  if (ride.status === "DOWN") return 2;
-  if (ride.opensAt) return 3;
-  return 4;
+// Color class: green/yellow/red by wait time, green for operating with no
+// wait, a lighter gray for later today, gray for everything else.
+function rideBadgeClass(ride) {
+  switch (rideState(ride)) {
+    case "wait":
+      if (ride.waitTime <= 20) return "badge-green";
+      if (ride.waitTime <= 45) return "badge-yellow";
+      return "badge-red";
+    case "operating":
+      return "badge-open";
+    case "opensLater":
+    case "show":
+      return "badge-opens";
+    default:
+      return "badge-gray";
+  }
 }
+
+// What an item's card shows in place of a wait: the wait in minutes (`unit`
+// "min"), or a status (see rideState).
+function rideLabel(ride) {
+  switch (rideState(ride)) {
+    case "wait":
+      return { value: String(ride.waitTime), unit: "min" };
+    case "operating":
+      return { value: "Operating", unit: "" };
+    case "down":
+      return { value: "Down", unit: "" };
+    case "opensLater":
+      return { value: `Opens ${ride.opensAt}`, unit: "" };
+    case "show":
+      return { value: ride.category === "meet" ? `Next ${ride.nextShow}` : `Show ${ride.nextShow}`, unit: "" };
+    case "showsOver":
+      return { value: ride.category === "meet" ? "No more today" : "No more shows", unit: "" };
+    default:
+      return { value: "Closed", unit: "" };
+  }
+}
+
+// The carousel's medium-size line for something happening later today, or
+// null. (A time is too wide for the giant wait-number style.)
+function carouselLaterText(ride) {
+  const state = rideState(ride);
+  if (state === "show") {
+    return ride.category === "meet" ? `Next appearance at ${ride.nextShow}` : `Next show at ${ride.nextShow}`;
+  }
+  if (state === "opensLater") return `Opens at ${ride.opensAt}`;
+  return null;
+}
+
+// Sort order: waits (longest first), operating, down, later today (soonest
+// first), then done for the day.
+const STATE_RANK = { wait: 0, operating: 1, down: 2, opensLater: 3, show: 3, showsOver: 4, closed: 4 };
 
 function compareRides(a, b) {
   return (
-    rideRank(a) - rideRank(b) ||
+    STATE_RANK[rideState(a)] - STATE_RANK[rideState(b)] ||
     (b.waitTime ?? -1) - (a.waitTime ?? -1) ||
-    (a.opensAtTime ?? 0) - (b.opensAtTime ?? 0)
+    (a.laterTime ?? 0) - (b.laterTime ?? 0)
   );
 }
 
@@ -87,34 +130,97 @@ function laterOpening(entity, now) {
   if (entity.status !== "CLOSED") return null;
   const today = parkDayKey(now);
   return (
-    (entity.operatingHours || [])
+    hourWindows(entity)
       .map((hours) => new Date(hours.startTime))
       .filter((time) => time > now && parkDayKey(time) === today)
       .sort((a, b) => a - b)[0] || null
   );
 }
 
-// A park's /live response -> its attractions, sorted for display.
-function parseLiveRides(data, now) {
-  return (data.liveData || [])
-    .filter((e) => e.entityType === "ATTRACTION")
-    .map((e) => ({
-      id: e.id,
-      name: e.name,
-      status: e.status,
-      waitTime: e.queue?.STANDBY?.waitTime ?? null,
-      // Rides and shows have a standby line (even between wait updates);
-      // exhibits and walk-throughs never do. The data has no "show" or
-      // "walk-through" type, so this is the best way to tell them apart.
-      hasLine: !!e.queue?.STANDBY,
-      ...opening(laterOpening(e, now)),
-    }))
-    .sort(compareRides);
+// ---- shows ----
+
+// The grid's groups, in display order. Every item belongs to exactly one.
+const CATEGORIES = [
+  { id: "ride", label: "Rides & Attractions" },
+  { id: "show", label: "Shows" },
+  { id: "meet", label: "Meet & Greets" },
+  { id: "exhibit", label: "Exhibits & Walk-throughs" },
+];
+
+// A SHOW entry's times for regular guests today. (Times that are only for a
+// separately ticketed event, like a Halloween party, are left out.)
+function regularShowtimes(entity) {
+  return (entity.showtimes || []).filter((t) => t.startTime && t.type !== "Special Ticketed Event");
 }
 
-// A later opening as the label shown ("10:00 AM") and a time to sort by.
-function opening(time) {
-  return time ? { opensAt: formatTimeOfDay(time), opensAtTime: time.getTime() } : { opensAt: null, opensAtTime: null };
+// Whether a SHOW entry (parade, stage show, fireworks, meet-and-greet, ...)
+// belongs on the dashboard: it has times for regular guests today. That
+// leaves out party-only shows, and ones with nothing scheduled today (such as
+// a festival's shows out of season). Anything else can be hidden on the
+// device itself with its Ignore button.
+function isListedShow(entity) {
+  return entity.entityType === "SHOW" && regularShowtimes(entity).length > 0;
+}
+
+// An item's opening windows today: its operating hours, or for a SHOW entry,
+// its showtimes (a meet-and-greet from 9:00 to 5:00 is listed as one).
+function hourWindows(entity) {
+  return entity.entityType === "SHOW" ? regularShowtimes(entity) : entity.operatingHours || [];
+}
+
+// A single performance is listed as a zero-length time; anything longer is a
+// window the item is open during.
+const isInstant = (slot) => slot.startTime && (!slot.endTime || slot.endTime === slot.startTime);
+
+// An item's performance times (sorted), or null if it doesn't run on a
+// schedule of performances. SHOW entries list them as showtimes; a few
+// attractions (e.g. The American Adventure) list them as zero-length
+// operating hours instead.
+function performanceTimes(entity) {
+  const slots = hourWindows(entity);
+  const instants = slots.filter(isInstant);
+  const scheduled =
+    entity.entityType === "SHOW" ? instants.length > 0 : slots.length >= 2 && instants.length === slots.length;
+  return scheduled ? instants.map((slot) => new Date(slot.startTime)).sort((a, b) => a - b) : null;
+}
+
+// Which group an item goes in. The data has no reliable "ride" vs "show"
+// label for attractions, so: SHOW entries are shows or, by name,
+// meet-and-greets; attractions with a performance schedule are shows; the
+// rest are rides and attractions if they have a standby line, or exhibits
+// and walk-throughs if they never do.
+function categoryOf(entity, hasLine, performances) {
+  if (entity.entityType === "SHOW") return /^meet\b/i.test(entity.name) ? "meet" : "show";
+  if (performances) return "show";
+  return hasLine ? "ride" : "exhibit";
+}
+
+// A park's /live response -> its attractions and listed shows, sorted for
+// display.
+function parseLiveRides(data, now) {
+  return (data.liveData || [])
+    .filter((e) => e.entityType === "ATTRACTION" || isListedShow(e))
+    .map((e) => {
+      const performances = performanceTimes(e);
+      const nextShow = (performances || []).find((time) => time > now) || null;
+      const opens = laterOpening(e, now);
+      const hasLine = !!e.queue?.STANDBY;
+      return {
+        id: e.id,
+        name: e.name,
+        status: e.status,
+        waitTime: e.queue?.STANDBY?.waitTime ?? null,
+        // Rides and shows have a standby line (even between wait updates);
+        // exhibits and walk-throughs never do.
+        hasLine,
+        isShow: performances !== null,
+        category: categoryOf(e, hasLine, performances),
+        opensAt: opens ? formatTimeOfDay(opens) : null,
+        nextShow: nextShow ? formatTimeOfDay(nextShow) : null,
+        laterTime: (nextShow || opens)?.getTime() ?? null,
+      };
+    })
+    .sort(compareRides);
 }
 
 // ---- times ----
@@ -190,35 +296,45 @@ function parseParkHours(data, now) {
 // ---- slides and grid ----
 // `data` below is the app's state (or a test's stand-in for it):
 //   { activeParkId, parkData: {parkId: {name, rides}},
-//     parkHours: {parkId: parseParkHours result}, favorites: Set of ride ids }
+//     parkHours: {parkId: parseParkHours result},
+//     favorites: Set of ride ids, ignored: Set of ride ids (optional) }
 
-// Whether a ride gets a carousel slide: it's down, it opens later today, or
-// it's open with a posted wait or a standby line (a ride or show between
-// wait updates). Exhibits and walk-throughs (open, never a line) only get
-// one if `includeNoLine` is set, which Favorites does, so starring one puts
-// it in the rotation.
-function inCarousel(ride, includeNoLine) {
-  if (ride.status === "DOWN") return true;
-  if (ride.status === "CLOSED") return !!ride.opensAt;
-  if (ride.status !== "OPERATING") return false;
-  return ride.waitTime !== null || ride.hasLine || includeNoLine;
+// Items the user has ignored never get a carousel slide.
+function isVisible(data, ride) {
+  return !(data.ignored && data.ignored.has(ride.id));
 }
 
-// A park's rides that pass `include` and belong in the carousel, as slides.
+// Whether an item gets a carousel slide: it has a wait, it's down, or it's
+// happening later today (opening, or a show's next performance). Items
+// operating with no wait get one if they're a show or meet-and-greet, or have
+// a standby line (a ride between wait updates); exhibits and walk-throughs,
+// which never have a line, only if `includeNoLine` is set, which Favorites
+// does, so starring one puts it in the rotation.
+function inCarousel(ride, includeNoLine) {
+  switch (rideState(ride)) {
+    case "wait":
+    case "down":
+    case "opensLater":
+    case "show":
+      return true;
+    case "operating":
+      return ride.hasLine || ride.category === "show" || ride.category === "meet" || includeNoLine;
+    default:
+      return false;
+  }
+}
+
+// A park's items that pass `include` and belong in the carousel, as slides.
 function openRidesFor(park, entry, include = () => true, includeNoLine = false) {
   if (!entry) return [];
   return entry.rides
     .filter((ride) => include(ride) && inCarousel(ride, includeNoLine))
     .map((ride) => ({
+      ...ride,
       parkId: park.id,
       parkShort: park.short,
       parkName: park.name,
       accent: park.accent,
-      id: ride.id,
-      name: ride.name,
-      status: ride.status,
-      waitTime: ride.waitTime,
-      opensAt: ride.opensAt,
     }));
 }
 
@@ -242,9 +358,14 @@ function closedSlideFor(park, hours) {
 // event, so rides with posted waits win over the closed slide. (A closed
 // park's "Operating" items without a wait don't: that's too weak a sign it's
 // really running.)
+//
+// Ignored items are left out of the slides, but still count toward whether
+// the park is running: hiding a ride shouldn't make its park look closed.
 function parkSlides(park, data, include = () => true, includeNoLine = false) {
   const rides = openRidesFor(park, data.parkData[park.id], include, includeNoLine);
-  if (rides.some((ride) => ride.status === "OPERATING" && ride.waitTime !== null)) return rides;
+  if (rides.some((ride) => ride.status === "OPERATING" && ride.waitTime !== null)) {
+    return rides.filter((ride) => isVisible(data, ride));
+  }
   const closed = closedSlideFor(park, data.parkHours[park.id]);
   return closed ? [closed] : rides;
 }
@@ -289,6 +410,26 @@ function gridRides(data) {
   return entry ? entry.rides : [];
 }
 
+// The grid's items split in two: `shown`, and `ignored` (listed in their own
+// section at the bottom, so they can be brought back).
+function gridSections(data) {
+  const rides = gridRides(data);
+  return {
+    shown: rides.filter((ride) => isVisible(data, ride)),
+    ignored: rides.filter((ride) => !isVisible(data, ride)),
+  };
+}
+
+// The grid's layout: Active and Inactive (ignored) sections, each split into
+// the CATEGORIES groups that have anything in them.
+function gridGroups(data) {
+  const { shown, ignored } = gridSections(data);
+  const grouped = (rides) =>
+    CATEGORIES.map((category) => ({ ...category, rides: rides.filter((ride) => ride.category === category.id) }))
+      .filter((group) => group.rides.length > 0);
+  return { active: grouped(shown), inactive: grouped(ignored) };
+}
+
 // ---- trip countdown ----
 
 function pad2(n) {
@@ -324,10 +465,17 @@ if (typeof module !== "undefined") {
     PARK_TIME_ZONE,
     DISPLAY_LOCALE,
     weatherIcon,
+    rideState,
     rideBadgeClass,
     rideLabel,
+    carouselLaterText,
     compareRides,
     laterOpening,
+    CATEGORIES,
+    isListedShow,
+    hourWindows,
+    categoryOf,
+    performanceTimes,
     parseLiveRides,
     formatTimeOfDay,
     formatHoursRange,
@@ -341,6 +489,8 @@ if (typeof module !== "undefined") {
     buildSlides,
     ridesAcrossParks,
     gridRides,
+    gridSections,
+    gridGroups,
     pad2,
     dateKey,
     countdownText,
