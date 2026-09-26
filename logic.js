@@ -39,39 +39,63 @@ function weatherIcon(code) {
   return "\u{1F324}️";
 }
 
-function waitBadgeClass(status, waitTime) {
-  if (status !== "OPERATING" || waitTime === null || waitTime === undefined) return "badge-gray";
-  if (waitTime <= 20) return "badge-green";
-  if (waitTime <= 45) return "badge-yellow";
+// Color class for a ride's status: green/yellow/red by wait time, green for
+// operating with no wait posted, a lighter gray for opening later today, gray for
+// anything else not running.
+function rideBadgeClass(ride) {
+  if (ride.status !== "OPERATING") return ride.opensAt && ride.status === "CLOSED" ? "badge-opens" : "badge-gray";
+  if (ride.waitTime === null || ride.waitTime === undefined) return "badge-open";
+  if (ride.waitTime <= 20) return "badge-green";
+  if (ride.waitTime <= 45) return "badge-yellow";
   return "badge-red";
 }
 
-function waitLabel(status, waitTime) {
-  if (status === "DOWN") return { value: "Down", unit: "" };
-  if (status === "REFURBISHMENT") return { value: "Closed", unit: "" };
-  if (status === "CLOSED") return { value: "Closed", unit: "" };
-  if (waitTime === null || waitTime === undefined) return { value: "--", unit: "" };
-  return { value: String(waitTime), unit: "min" };
+// What a ride's card shows in place of a wait: the wait in minutes (`unit`
+// "min"), or a status: "Operating" (running, no wait posted), "Down",
+// "Opens <time>" (later today), or "Closed".
+function rideLabel(ride) {
+  if (ride.status === "DOWN") return { value: "Down", unit: "" };
+  if (ride.status === "OPERATING") {
+    return ride.waitTime !== null && ride.waitTime !== undefined
+      ? { value: String(ride.waitTime), unit: "min" }
+      : { value: "Operating", unit: "" };
+  }
+  if (ride.opensAt) return { value: `Opens ${ride.opensAt}`, unit: "" };
+  return { value: "Closed", unit: "" };
 }
 
-// Walk-throughs, transportation, and landmarks (e.g. Cinderella Castle, Main
-// Street Vehicles) report OPERATING with no wait time and never will — they
-// have no queue to track. Down/Closed/Refurbishment still carry real
-// information, so only this specific combination is filtered out.
-function hasWaitInfo(ride) {
-  return !(ride.status === "OPERATING" && ride.waitTime === null);
+// Sort order: rides with a wait (longest first), then operating with no wait,
+// then down, then opening later today (soonest first), then closed.
+function rideRank(ride) {
+  if (ride.status === "OPERATING") return ride.waitTime !== null ? 0 : 1;
+  if (ride.status === "DOWN") return 2;
+  if (ride.opensAt) return 3;
+  return 4;
 }
 
-// Rides with a live wait time first, longest wait first; everything else after.
-function compareByWait(a, b) {
-  const aOpen = a.status === "OPERATING" && a.waitTime !== null;
-  const bOpen = b.status === "OPERATING" && b.waitTime !== null;
-  if (aOpen !== bOpen) return aOpen ? -1 : 1;
-  return (b.waitTime ?? -1) - (a.waitTime ?? -1);
+function compareRides(a, b) {
+  return (
+    rideRank(a) - rideRank(b) ||
+    (b.waitTime ?? -1) - (a.waitTime ?? -1) ||
+    (a.opensAtTime ?? 0) - (b.opensAtTime ?? 0)
+  );
 }
 
-// A park's /live response -> its attractions, sorted by wait.
-function parseLiveRides(data) {
+// For a ride that's closed right now: when it opens later today (park time),
+// or null if it isn't opening again today.
+function laterOpening(entity, now) {
+  if (entity.status !== "CLOSED") return null;
+  const today = parkDayKey(now);
+  return (
+    (entity.operatingHours || [])
+      .map((hours) => new Date(hours.startTime))
+      .filter((time) => time > now && parkDayKey(time) === today)
+      .sort((a, b) => a - b)[0] || null
+  );
+}
+
+// A park's /live response -> its attractions, sorted for display.
+function parseLiveRides(data, now) {
   return (data.liveData || [])
     .filter((e) => e.entityType === "ATTRACTION")
     .map((e) => ({
@@ -79,8 +103,18 @@ function parseLiveRides(data) {
       name: e.name,
       status: e.status,
       waitTime: e.queue?.STANDBY?.waitTime ?? null,
+      // Rides and shows have a standby line (even between wait updates);
+      // exhibits and walk-throughs never do. The data has no "show" or
+      // "walk-through" type, so this is the best way to tell them apart.
+      hasLine: !!e.queue?.STANDBY,
+      ...opening(laterOpening(e, now)),
     }))
-    .sort(compareByWait);
+    .sort(compareRides);
+}
+
+// A later opening as the label shown ("10:00 AM") and a time to sort by.
+function opening(time) {
+  return time ? { opensAt: formatTimeOfDay(time), opensAtTime: time.getTime() } : { opensAt: null, opensAtTime: null };
 }
 
 // ---- times ----
@@ -158,12 +192,23 @@ function parseParkHours(data, now) {
 //   { activeParkId, parkData: {parkId: {name, rides}},
 //     parkHours: {parkId: parseParkHours result}, favorites: Set of ride ids }
 
-// A park's rides that belong in the carousel: those with a live wait, plus
-// ones that are down.
-function openRidesFor(park, entry) {
+// Whether a ride gets a carousel slide: it's down, it opens later today, or
+// it's open with a posted wait or a standby line (a ride or show between
+// wait updates). Exhibits and walk-throughs (open, never a line) only get
+// one if `includeNoLine` is set, which Favorites does, so starring one puts
+// it in the rotation.
+function inCarousel(ride, includeNoLine) {
+  if (ride.status === "DOWN") return true;
+  if (ride.status === "CLOSED") return !!ride.opensAt;
+  if (ride.status !== "OPERATING") return false;
+  return ride.waitTime !== null || ride.hasLine || includeNoLine;
+}
+
+// A park's rides that pass `include` and belong in the carousel, as slides.
+function openRidesFor(park, entry, include = () => true, includeNoLine = false) {
   if (!entry) return [];
   return entry.rides
-    .filter((ride) => (ride.status === "OPERATING" && ride.waitTime !== null) || ride.status === "DOWN")
+    .filter((ride) => include(ride) && inCarousel(ride, includeNoLine))
     .map((ride) => ({
       parkId: park.id,
       parkShort: park.short,
@@ -173,6 +218,7 @@ function openRidesFor(park, entry) {
       name: ride.name,
       status: ride.status,
       waitTime: ride.waitTime,
+      opensAt: ride.opensAt,
     }));
 }
 
@@ -191,12 +237,14 @@ function closedSlideFor(park, hours) {
 }
 
 // A park's slides: its running rides (those passing `include`), or its
-// "closed" slide if the park is closed and none of them are operating. A park
-// can be closed yet have rides running, e.g. during a ticketed evening event,
-// so operating rides win over the closed slide.
-function parkSlides(park, data, include = () => true) {
-  const rides = openRidesFor(park, data.parkData[park.id]).filter(include);
-  if (rides.some((ride) => ride.status === "OPERATING")) return rides;
+// "closed" slide if the park is closed and none of them has a wait posted. A
+// park can be closed yet have rides running, e.g. during a ticketed evening
+// event, so rides with posted waits win over the closed slide. (A closed
+// park's "Operating" items without a wait don't: that's too weak a sign it's
+// really running.)
+function parkSlides(park, data, include = () => true, includeNoLine = false) {
+  const rides = openRidesFor(park, data.parkData[park.id], include, includeNoLine);
+  if (rides.some((ride) => ride.status === "OPERATING" && ride.waitTime !== null)) return rides;
   const closed = closedSlideFor(park, data.parkHours[park.id]);
   return closed ? [closed] : rides;
 }
@@ -213,7 +261,7 @@ function buildSlides(data, shuffle = (slides) => slides) {
     return PARKS.flatMap((park) => {
       const entry = data.parkData[park.id];
       const hasFavorite = !!entry && entry.rides.some(isFavorite);
-      return hasFavorite ? parkSlides(park, data, isFavorite) : [];
+      return hasFavorite ? parkSlides(park, data, isFavorite, true) : [];
     });
   }
   const park = PARKS.find((p) => p.id === data.activeParkId);
@@ -227,18 +275,18 @@ function ridesAcrossParks(parkData, include) {
     if (!entry) return [];
     return entry.rides.filter(include).map((ride) => ({ ...ride, parkShort: park.short }));
   });
-  return combined.sort(compareByWait);
+  return combined.sort(compareRides);
 }
 
-// The grid's rides for the selected tab or park.
+// The grid's rides for the selected tab or park: everything, each labeled
+// with its wait or status.
 function gridRides(data) {
-  if (data.activeParkId === ALL_PARKS.id) return ridesAcrossParks(data.parkData, hasWaitInfo);
-  // Favorites show even with no wait info, so a favorited ride never vanishes.
+  if (data.activeParkId === ALL_PARKS.id) return ridesAcrossParks(data.parkData, () => true);
   if (data.activeParkId === FAVORITES.id) {
     return ridesAcrossParks(data.parkData, (ride) => data.favorites.has(ride.id));
   }
   const entry = data.parkData[data.activeParkId];
-  return entry ? entry.rides.filter(hasWaitInfo) : [];
+  return entry ? entry.rides : [];
 }
 
 // ---- trip countdown ----
@@ -276,16 +324,17 @@ if (typeof module !== "undefined") {
     PARK_TIME_ZONE,
     DISPLAY_LOCALE,
     weatherIcon,
-    waitBadgeClass,
-    waitLabel,
-    hasWaitInfo,
-    compareByWait,
+    rideBadgeClass,
+    rideLabel,
+    compareRides,
+    laterOpening,
     parseLiveRides,
     formatTimeOfDay,
     formatHoursRange,
     parkDayKey,
     formatNextOpen,
     parseParkHours,
+    inCarousel,
     openRidesFor,
     closedSlideFor,
     parkSlides,

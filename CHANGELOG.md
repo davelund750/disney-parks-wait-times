@@ -20,6 +20,12 @@ The project doesn't use version numbers, so sections are dated instead.
   shell scripts.
 
 ### Changed
+- Rides, shows, and exhibits with no wait time are no longer hidden or shown
+  as just "Closed". They now read "Operating" when running (e.g. The Hall of
+  Presidents), and "Opens *time*" when they open later in the day. The grid
+  lists everything, with these status words sized to fill each card; the
+  carousel adds "Operating" rides and shows and items opening later, while
+  exhibits and walk-throughs stay in the grid unless starred as favorites.
 - The app's decision logic moved from `app.js` into `logic.js` so it can be
   tested; the dashboard itself behaves exactly as before.
 - README rewritten for anyone using the project: requirements, a

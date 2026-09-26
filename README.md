@@ -36,17 +36,28 @@ Toggle between them with the button in the top-right corner.
   auto-advancing every ~4.5 seconds. Tap the arrows to move forward or back,
   or the round button to pause. On All Parks, rides are shuffled so the loop
   jumps between parks instead of finishing one park before starting the next.
-- **Grid**: every ride in the current selection at once, sorted by wait time.
-  Down, closed, and under-refurbishment rides are included, grayed out with
-  their status. On All Parks and Favorites, each card is tagged with its park
-  (e.g. "MK").
+- **Grid**: everything in the current selection at once, rides, shows, and
+  exhibits alike. On All Parks and Favorites, each card is tagged with its
+  park (e.g. "MK").
 
-Rides that are temporarily down show a gray "Down" badge. Closed and
-refurbishing rides appear only in the grid: the API gives no reopening date,
-so a carousel slide would have nothing useful to say about them.
-Walk-throughs, transportation, and landmarks that never report a wait time
-(Cinderella Castle, Main Street Vehicles, etc.) are left out entirely; see
-`hasWaitInfo()` in `app.js`.
+Each item shows one of:
+
+- **its wait time**, in minutes;
+- **Operating**: running, with no wait posted. This covers theater shows such as
+  The Hall of Presidents, rides between wait-time updates, and exhibits and
+  walk-throughs, which never have a wait;
+- **Down**: temporarily not running;
+- **Opens *time***: opening later today, such as a show that starts after the
+  park opens;
+- **Closed**: not open today (or under refurbishment).
+
+The grid lists everything, in that order. The carousel shows items with a
+wait time, down rides, items opening later today ("Opens at 11:45 AM"), and
+"Operating" items that have a standby line (rides and shows). Exhibits and
+walk-throughs, which never have a line, stay in the grid so they don't crowd
+the rotation, unless you star one, which adds it to the Favorites carousel.
+The data has no "show" or "walk-through" type, so whether an item has a
+standby line is how the app tells them apart.
 
 ### Closed parks
 

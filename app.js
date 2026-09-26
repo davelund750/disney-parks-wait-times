@@ -97,7 +97,7 @@ async function fetchPark(park) {
   const res = await fetch(`${API_BASE}/entity/${park.id}/live`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  return { name: data.name || park.name, rides: parseLiveRides(data) };
+  return { name: data.name || park.name, rides: parseLiveRides(data, new Date()) };
 }
 
 async function fetchParkHours(park) {
@@ -194,8 +194,9 @@ function renderGrid() {
     name.textContent = ride.name;
 
     const wait = document.createElement("div");
-    wait.className = "ride-wait " + waitBadgeClass(ride.status, ride.waitTime);
-    const { value, unit } = waitLabel(ride.status, ride.waitTime);
+    const { value, unit } = rideLabel(ride);
+    // Status words ("Operating", "Opens 10:00 AM", ...) are sized to fit the card.
+    wait.className = "ride-wait " + rideBadgeClass(ride) + (unit ? "" : " status-text");
     wait.innerHTML = `<span class="value">${value}</span><span class="unit">${unit}</span>`;
 
     card.appendChild(name);
@@ -299,9 +300,16 @@ function renderCarouselSlide() {
     renderFavoriteButton(els.carouselFav, slide.id, " Favorite");
     els.carouselFav.hidden = false;
     els.carouselName.textContent = slide.name;
-    els.carouselWait.className = "carousel-wait " + waitBadgeClass(slide.status, slide.waitTime);
-    const { value, unit } = waitLabel(slide.status, slide.waitTime);
-    els.carouselWait.innerHTML = `<span class="value">${value}</span><span class="unit">${unit}</span>`;
+    if (slide.status === "CLOSED" && slide.opensAt) {
+      // A time is too wide for the giant wait-number style.
+      els.carouselWait.className = "carousel-wait opens";
+      els.carouselWait.innerHTML = `<span class="value">Opens at ${slide.opensAt}</span>`;
+    } else {
+      const { value, unit } = rideLabel(slide);
+      // Status words ("Operating", "Down") are too wide for the giant number size.
+      els.carouselWait.className = "carousel-wait " + rideBadgeClass(slide) + (unit ? "" : " status-text");
+      els.carouselWait.innerHTML = `<span class="value">${value}</span><span class="unit">${unit}</span>`;
+    }
   }
 
   els.carouselPosition.textContent = `${state.index + 1} / ${state.sequence.length}`;
