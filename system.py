@@ -12,13 +12,31 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 ZONEINFO = "/usr/share/zoneinfo"
 COUNTRY_CODE = re.compile(r"^[A-Z]{2}$")
 
 WRONG_PASSWORD = "Couldn't connect. Check the password and try again."
 NOT_FOUND = "Couldn't find that network. Move closer to the router, or check the name."
+NEEDS_PASSWORD = "Couldn't connect with the saved settings. Enter the password to try again."
+NOT_ALLOWED = "This display isn't allowed to change Wi-Fi settings. (Its setup permissions are missing.)"
+CONNECT_FAILED = "Couldn't connect to that network. Please try again."
+
+
+def connect_error(detail):
+    """A friendly message for why `nmcli dev wifi connect` failed. Only a real
+    password problem says to check the password."""
+    detail = detail.lower()
+    if "no network with ssid" in detail:
+        return NOT_FOUND
+    if "not authorized" in detail or "insufficient privileges" in detail or "permission denied" in detail:
+        return NOT_ALLOWED
+    if "secrets were required" in detail or "psk" in detail or "password" in detail:
+        return WRONG_PASSWORD
+    return CONNECT_FAILED
 
 
 def _read_tab(filename):
@@ -87,6 +105,7 @@ class RealSystem:
         result = self._run(
             "nmcli", "-t", "-e", "yes", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi", "list", "--rescan", "yes"
         )
+        saved = self.saved_networks()
         networks = []
         for line in result.stdout.splitlines():
             fields = _split_terse(line)
@@ -96,19 +115,64 @@ class RealSystem:
                     "ssid": ssid,
                     "signal": int(signal) if signal.isdigit() else 0,
                     "secure": security not in ("", "--"),
+                    "saved": ssid in saved,
                 })
         return _unique_networks(networks)
 
+    def saved_networks(self):
+        """Saved Wi-Fi connections, as {network name: connection name}."""
+        saved = {}
+        for line in self._run("nmcli", "-t", "-e", "yes", "-f", "NAME,TYPE", "connection", "show").stdout.splitlines():
+            fields = _split_terse(line)
+            if len(fields) == 2 and fields[1] == "802-11-wireless":
+                ssid = self._run("nmcli", "-g", "802-11-wireless.ssid", "connection", "show", fields[0]).stdout.strip()
+                if ssid:
+                    saved[ssid] = fields[0]
+        return saved
+
     def status(self):
-        ssid = None
+        # These are slow on a Pi 3 (raspi-config especially), so ask them all
+        # at once rather than one after another.
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            ssid = pool.submit(self._ssid)
+            online = pool.submit(self._online)
+            country = pool.submit(self.country)
+            timezone = pool.submit(self.timezone)
+            return {"ssid": ssid.result(), "online": online.result(), "country": country.result(),
+                    "timezone": timezone.result()}
+
+    def _ssid(self):
         for line in self._run("nmcli", "-t", "-e", "yes", "-f", "ACTIVE,SSID", "dev", "wifi").stdout.splitlines():
             fields = _split_terse(line)
             if len(fields) == 2 and fields[0] == "yes":
-                ssid = fields[1]
-        online = self._run("nmcli", "networking", "connectivity", "check").stdout.strip() == "full"
-        return {"ssid": ssid, "online": online, "country": self.country(), "timezone": self.timezone()}
+                return fields[1]
+        return None
+
+    def _online(self):
+        # NetworkManager's last known answer, which it keeps up to date itself;
+        # "connectivity check" would test the internet on the spot, which is slow.
+        return self._run("nmcli", "networking", "connectivity").stdout.strip() == "full"
 
     def connect(self, ssid, password, hidden):
+        # A network the Pi already knows: use its saved settings as they are.
+        # Connecting "fresh" would try to rewrite them, which can fail (e.g.
+        # for one set up by Raspberry Pi Imager, whose settings belong to
+        # netplan).
+        saved = self.saved_networks().get(ssid)
+        if saved:
+            try:
+                result = self._run("nmcli", "connection", "up", saved, timeout=60)
+            except subprocess.TimeoutExpired:
+                result = None
+            if result and result.returncode == 0:
+                return {"ok": True, "message": f"Connected to {ssid}."}
+            detail = (result.stderr or result.stdout).strip() if result else "timed out"
+            print(f"Wi-Fi: saved connection {saved!r} for {ssid!r} failed: {detail}", file=sys.stderr, flush=True)
+            if not password:
+                # Maybe the password changed; the wizard will ask for it.
+                return {"ok": False, "message": NEEDS_PASSWORD, "needsPassword": True}
+        elif not password and not hidden:
+            return {"ok": False, "message": NEEDS_PASSWORD, "needsPassword": True}
         args = ["nmcli", "dev", "wifi", "connect", ssid]
         if password:
             args += ["password", password]
@@ -117,13 +181,14 @@ class RealSystem:
         try:
             result = self._run(*args, timeout=60)
         except subprocess.TimeoutExpired:
-            return {"ok": False, "message": WRONG_PASSWORD}
+            print(f"Wi-Fi connect to {ssid!r} timed out", file=sys.stderr, flush=True)
+            return {"ok": False, "message": CONNECT_FAILED}
         if result.returncode == 0:
             return {"ok": True, "message": f"Connected to {ssid}."}
-        detail = (result.stderr or result.stdout).lower()
-        if "no network with ssid" in detail:
-            return {"ok": False, "message": NOT_FOUND}
-        return {"ok": False, "message": WRONG_PASSWORD}
+        # nmcli's own explanation goes to the service log (the password isn't in it).
+        detail = (result.stderr or result.stdout).strip()
+        print(f"Wi-Fi connect to {ssid!r} failed: {detail}", file=sys.stderr, flush=True)
+        return {"ok": False, "message": connect_error(detail)}
 
     def country(self):
         result = self._run("sudo", "-n", "raspi-config", "nonint", "get_wifi_country")
@@ -144,7 +209,8 @@ class FakeSystem:
     """Pretends to be a Pi, for trying the wizard elsewhere. Connecting works
     for any password except ones starting with "wrong". It reports being online (as the computer
     running it presumably is), unless WDW_FAKE_OFFLINE=1, which simulates a
-    kiosk with no Wi-Fi until it's connected."""
+    kiosk with no Wi-Fi until it's connected. WDW_FAKE_STATUS_DELAY (seconds)
+    makes the status check as slow as a real Pi 3's."""
 
     fake = True
 
@@ -157,19 +223,23 @@ class FakeSystem:
     def networks(self):
         time.sleep(1)  # a real scan takes a moment
         return _unique_networks([
-            {"ssid": "SwampNet", "signal": 100, "secure": True},
-            {"ssid": "SwampNet", "signal": 64, "secure": True},
-            {"ssid": "Neighbor's Wi-Fi", "signal": 55, "secure": True},
-            {"ssid": "Coffee Shop Guest", "signal": 40, "secure": False},
-            {"ssid": "ワイファイ 5G", "signal": 30, "secure": True},
+            {"ssid": "SwampNet", "signal": 100, "secure": True, "saved": True},
+            {"ssid": "SwampNet", "signal": 64, "secure": True, "saved": True},
+            {"ssid": "Neighbor's Wi-Fi", "signal": 55, "secure": True, "saved": False},
+            {"ssid": "Coffee Shop Guest", "signal": 40, "secure": False, "saved": False},
+            {"ssid": "ワイファイ 5G", "signal": 30, "secure": True, "saved": False},
         ])
 
     def status(self):
+        time.sleep(float(os.environ.get("WDW_FAKE_STATUS_DELAY", "0")))
         return {"ssid": self._ssid, "online": self._ssid is not None, "country": self._country,
                 "timezone": self._timezone}
 
     def connect(self, ssid, password, hidden):
         time.sleep(2)
+        if ssid == "SwampNet" and not password:  # saved, like on the real Pi
+            self._ssid = ssid
+            return {"ok": True, "message": f"Connected to {ssid}."}
         if password.startswith("wrong"):
             return {"ok": False, "message": WRONG_PASSWORD}
         self._ssid = ssid

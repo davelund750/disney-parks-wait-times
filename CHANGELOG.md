@@ -41,6 +41,24 @@ The project doesn't use version numbers, so sections are dated instead.
   shell scripts.
 
 ### Fixed
+- Choosing a Wi-Fi network the kiosk already knew made the setup wizard
+  reconnect from scratch, rewriting the network's saved settings, which
+  could fail (e.g. for a network set up by Raspberry Pi Imager) and was
+  reported as a wrong password. Known networks are now marked "Saved" and
+  connect with one tap using their saved settings (the password is asked
+  for only if those no longer work); choosing the network it's already on
+  just says so and moves on.
+- The setup wizard blamed the password for every failed Wi-Fi connection.
+  It now says so only for real password problems, reports missing
+  permissions or other failures separately, and logs the details.
+- The setup keyboard's Shift key still looked on after typing a capital
+  letter (though it was off), so it took two taps to turn off. It now turns
+  off, and looks off, right after the letter.
+- The setup wizard showed a blank screen with a lone "Next" button for a
+  few seconds before the Welcome screen. The Welcome screen now appears
+  right away while the rest loads in the background, and the Pi's status
+  check that caused most of the wait is faster (its commands run at the
+  same time, and it no longer tests the internet on the spot).
 - Swiping didn't scroll the setup wizard on the kiosk's touchscreen, so long
   lists (like US time zones) couldn't be scrolled. The touchscreen sends
   swipes as mouse drags, which the wizard now scrolls with, like the

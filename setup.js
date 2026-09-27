@@ -37,6 +37,10 @@ const wizard = {
   units: "F",
   clock: "12",
   status: {}, // /api/system/status
+  // The countries and system status load in the background (the status is
+  // slow on a Pi 3), so the first screen can show right away.
+  loaded: false,
+  loading: null, // a promise, while they load
 };
 
 async function api(path, method = "GET", body) {
@@ -104,6 +108,16 @@ function showStep(index) {
   wizard.index = index;
   renderProgress();
   els.step.innerHTML = "";
+  // Every step but the welcome needs the background data; if someone gets
+  // there first, show a moment's wait, then the step.
+  if (wizard.steps[index] !== welcomeStep && !wizard.loaded) {
+    const box = el("div", "setup-center");
+    box.append(el("div", "setup-spinner"), el("p", "setup-text dim", params.has("wifi") ? "Checking the connection…" : "One moment…"));
+    els.step.appendChild(box);
+    setFooter({ hidden: true });
+    wizard.loading.then(() => wizard.index === index && showStep(index));
+    return;
+  }
   wizard.steps[index].render();
   els.step.scrollTop = scroll;
 }
@@ -318,9 +332,11 @@ function wifiList() {
       const btn = el("button", "choice" + (current ? " selected" : ""));
       btn.append(
         el("span", "choice-label", net.ssid),
-        el("span", "choice-meta", `${net.secure ? "🔒 " : ""}${signalBars(net.signal)}`)
+        el("span", "choice-meta", `${net.saved ? "Saved  " : net.secure ? "🔒 " : ""}${signalBars(net.signal)}`)
       );
-      btn.addEventListener("click", () => chooseNetwork({ ssid: net.ssid, secure: net.secure, hidden: false }));
+      btn.addEventListener("click", () =>
+        chooseNetwork({ ssid: net.ssid, secure: net.secure, saved: net.saved, hidden: false })
+      );
       list.appendChild(btn);
     }
   }
@@ -354,7 +370,17 @@ function chooseNetwork(network) {
   wifiStep.password = "";
   wifiStep.showPassword = false;
   wifiStep.error = "";
-  if (network.secure) {
+  // Already on this network: nothing to do. (Reconnecting would try to
+  // rewrite the network's saved settings, which can fail, e.g. for a network
+  // set up by Raspberry Pi Imager.)
+  if (wizard.status.online && network.ssid === wizard.status.ssid) {
+    showNotice(`Already connected to ${network.ssid}.`);
+    goNext();
+    return;
+  }
+  // A saved network connects with its saved settings (the server asks for a
+  // password only if they don't work); a new, locked one needs a password.
+  if (network.secure && !network.saved) {
     wifiStep.view = "password";
     redraw();
   } else {
@@ -538,8 +564,10 @@ function keyboard({ doneLabel, onKey, onDone }) {
         else if (key === "done") return onDone();
         else if (key === "back") return onKey("back");
         else {
-          onKey(key === "space" ? " " : letter);
+          // Shift is for one letter. Turn it off before onKey redraws the
+          // keyboard, or the redrawn keys would still show it on.
           keyboardState.shift = false;
+          onKey(key === "space" ? " " : letter);
           return;
         }
         redraw();
@@ -553,17 +581,23 @@ function keyboard({ doneLabel, onKey, onDone }) {
 
 // ---- start ----
 
-async function start() {
-  const [settings, countries] = await Promise.all([
-    api("/api/settings").catch(() => ({})),
-    api("/api/system/countries").catch(() => []),
-    refreshStatus(),
-  ]);
+// Loads the countries and the Pi's current settings, and fills in the
+// wizard's starting choices from them.
+async function loadSystemData(settings) {
+  const [countries] = await Promise.all([api("/api/system/countries").catch(() => []), refreshStatus()]);
   wizard.countries = countries;
   wizard.country = wizard.status.country || null;
   wizard.timezone = wizard.status.timezone || null;
   wizard.units = settings.units || (FAHRENHEIT.has(wizard.country) ? "F" : "C");
   wizard.clock = settings.clock || (TWELVE_HOUR.has(wizard.country) ? "12" : "24");
+  wizard.loaded = true;
+}
+
+async function start() {
+  // Only the saved settings (a quick file read) are needed to pick the first
+  // screen; everything else loads while it's showing.
+  const settings = await api("/api/settings").catch(() => ({}));
+  wizard.loading = loadSystemData(settings);
 
   if (params.has("wifi")) {
     // Offline: just get connected, then back to the dashboard.
