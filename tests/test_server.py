@@ -16,7 +16,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, PROJECT_DIR)
+sys.path.insert(0, os.path.join(PROJECT_DIR, "server"))
 
 
 class ServerTest(unittest.TestCase):
@@ -128,6 +128,16 @@ class ServerTest(unittest.TestCase):
         with urllib.request.urlopen(self.base + "/api/favorites") as res:
             self.assertEqual(res.headers.get("Cache-Control"), "no-store")
 
+    def test_only_the_web_folder_is_served(self):
+        # Scripts, the server's own code, tests, and git data stay private,
+        # including via "../" tricks.
+        for path in ["/server.py", "/server/server.py", "/install.sh", "/kiosk/kiosk.sh",
+                     "/tests/test_server.py", "/.git/config", "/../install.sh", "/%2e%2e/install.sh",
+                     "/../server/server.py"]:
+            with self.subTest(path=path):
+                status, body = self.request("GET", path)
+                self.assertEqual(status, 404, body[:80] if isinstance(body, bytes) else body)
+
     def test_the_app_itself_is_served(self):
         status, body = self.request("GET", "/")
         self.assertEqual(status, 200)
@@ -149,7 +159,7 @@ class ServerTest(unittest.TestCase):
     def test_allowed_resorts_match_logic_js(self):
         # The server's list must be kept in step with RESORTS in logic.js.
         import re
-        with open(os.path.join(PROJECT_DIR, "logic.js")) as f:
+        with open(os.path.join(PROJECT_DIR, "web", "logic.js")) as f:
             ids = re.findall(r'^    id: "(\w+)",', f.read(), re.M)
         server = importlib.import_module("server")
         self.assertEqual(ids, list(server.SETTINGS_VALUES["resort"]))

@@ -13,7 +13,8 @@
 
 set -uo pipefail
 
-APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The project folder: this script lives in its kiosk/ folder.
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Owner of the project folder (GNU stat on the Pi; BSD stat elsewhere).
 APP_USER="$(stat -c %U "$APP_DIR" 2>/dev/null || stat -f %Su "$APP_DIR")"
 LOG_FILE="${WDW_UPDATE_LOG:-/var/log/wdw-update.log}"

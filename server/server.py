@@ -26,7 +26,10 @@ only answer requests from the Pi, never from elsewhere on the network:
                               ignored items, and saved Wi-Fi networks, so
                               the kiosk starts over with the setup wizard
 
-Usage: python3 server.py   (PORT and WDW_DATA_DIR env vars override defaults)
+Only the web/ folder is served; the rest of the project (scripts, tests,
+.git) isn't reachable over the network.
+
+Usage: python3 server/server.py   (PORT and WDW_DATA_DIR override defaults)
 """
 
 import json
@@ -36,7 +39,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 import system
 
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
+# The pages, scripts, and styles: the only files served.
+WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
 DATA_DIR = os.environ.get("WDW_DATA_DIR", os.path.expanduser("~/.local/share/wdw-wait-times"))
 # Each saved list: its API path -> the file it's kept in.
 LISTS = {
@@ -97,7 +101,7 @@ def valid_setting(key, value):
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=APP_DIR, **kwargs)
+        super().__init__(*args, directory=WEB_DIR, **kwargs)
 
     def end_headers(self):
         # The app's files: let browsers cache them, but check for a newer
@@ -230,5 +234,5 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     mode = " (pretend system: nothing on this computer is changed)" if SYSTEM.fake else ""
-    print(f"Serving {APP_DIR} on port {PORT}; saved data in {DATA_DIR}{mode}", flush=True)
+    print(f"Serving {WEB_DIR} on port {PORT}; saved data in {DATA_DIR}{mode}", flush=True)
     ThreadingHTTPServer(("", PORT), Handler).serve_forever()

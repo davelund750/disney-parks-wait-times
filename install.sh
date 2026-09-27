@@ -88,7 +88,7 @@ After=network-online.target
 
 [Service]
 WorkingDirectory=$APP_DIR
-ExecStart=/usr/bin/python3 $APP_DIR/server.py
+ExecStart=/usr/bin/python3 $APP_DIR/server/server.py
 Restart=on-failure
 User=$APP_USER
 
@@ -117,11 +117,11 @@ cat > "$APP_HOME/.config/autostart/wdw-wait-times.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=WDW Wait Times
-Exec=$APP_DIR/kiosk.sh
+Exec=$APP_DIR/kiosk/kiosk.sh
 X-GNOME-Autostart-enabled=true
 EOF
 sudo chown "$APP_USER":"$APP_USER" "$APP_HOME/.config/autostart/wdw-wait-times.desktop"
-chmod +x "$APP_DIR/kiosk.sh"
+chmod +x "$APP_DIR/kiosk/kiosk.sh"
 echo "    Using $CHROMIUM_BIN"
 echo
 
@@ -137,7 +137,7 @@ PCMANFM_DIR="$APP_HOME/.config/pcmanfm/default"
 mkdir -p "$PCMANFM_DIR"
 for src in /etc/xdg/pcmanfm/default/desktop-items-*.conf; do
   [ -e "$src" ] || continue
-  sed -e "s|^wallpaper=.*|wallpaper=$APP_DIR/kiosk-wallpaper.png|" \
+  sed -e "s|^wallpaper=.*|wallpaper=$APP_DIR/kiosk/wallpaper.jpg|" \
       -e 's|^desktop_bg=.*|desktop_bg=#0d0d11111717|' \
       -e 's|^show_trash=.*|show_trash=0|' \
       -e 's|^show_mounts=.*|show_mounts=0|' \
@@ -165,7 +165,7 @@ set_panel_key notify_libnotify false
 
 # Pointer: an invisible pointer theme, since hiding it in the page only works
 # once the pointer moves, and on a touchscreen it never does.
-HOME="$APP_HOME" python3 "$APP_DIR/make_blank_cursor_theme.py"
+HOME="$APP_HOME" python3 "$APP_DIR/kiosk/make_blank_cursor_theme.py"
 LABWC_ENV="$APP_HOME/.config/labwc/environment"
 mkdir -p "$(dirname "$LABWC_ENV")"
 touch "$LABWC_ENV"
@@ -179,17 +179,17 @@ echo
 
 # ---- boot splash ----
 # Replaces the "Welcome to the Raspberry Pi Desktop" boot screen with a
-# custom splash theme (boot-splash/). Switching themes rebuilds the initramfs,
+# custom splash theme (kiosk/boot-splash/). Switching themes rebuilds the initramfs,
 # which takes a minute, so skip it when the theme is already installed and
 # unchanged. Undo with: sudo plymouth-set-default-theme -R pix
 echo "==> Installing boot splash"
 SPLASH_DIR=/usr/share/plymouth/themes/wdw
 if [ "$(plymouth-set-default-theme 2>/dev/null)" = "wdw" ] \
-  && diff -rq "$APP_DIR/boot-splash" "$SPLASH_DIR" >/dev/null 2>&1; then
+  && diff -rq "$APP_DIR/kiosk/boot-splash" "$SPLASH_DIR" >/dev/null 2>&1; then
   echo "    Already installed"
 else
   sudo mkdir -p "$SPLASH_DIR"
-  sudo cp "$APP_DIR"/boot-splash/* "$SPLASH_DIR/"
+  sudo cp "$APP_DIR"/kiosk/boot-splash/* "$SPLASH_DIR/"
   sudo plymouth-set-default-theme -R wdw
 fi
 echo
@@ -260,7 +260,7 @@ echo
 # reboots. Only possible when this folder is a git checkout.
 echo "==> Installing weekly update timer (Sundays 4:00 AM)"
 if [ -d "$APP_DIR/.git" ]; then
-  chmod +x "$APP_DIR/update.sh"
+  chmod +x "$APP_DIR/kiosk/update.sh"
   sudo tee /etc/systemd/system/wdw-update.service >/dev/null <<EOF
 [Unit]
 Description=WDW Wait Times weekly update and reboot
@@ -269,7 +269,7 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=$APP_DIR/update.sh
+ExecStart=$APP_DIR/kiosk/update.sh
 EOF
   sudo tee /etc/systemd/system/wdw-update.timer >/dev/null <<EOF
 [Unit]

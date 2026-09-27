@@ -3,7 +3,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const L = require("../logic.js");
+const L = require("../web/logic.js");
 
 const [MK, EP, HS, AK] = L.PARKS;
 
@@ -12,7 +12,7 @@ const eastern = (isoLocal) => new Date(`${isoLocal}-04:00`);
 
 // ---- resorts ----
 
-const { LANDMARKS } = require("../landmarks.js");
+const { LANDMARKS } = require("../web/landmarks.js");
 
 test("every resort is complete: parks with landmarks, a time zone, a weather point", () => {
   const parkIds = new Set();

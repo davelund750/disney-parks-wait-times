@@ -4,7 +4,7 @@ A kiosk-style dashboard for Disney park wait times, built to run
 full-screen on a Raspberry Pi with a small touchscreen. It's plain
 HTML/CSS/JS with no build step. Live data comes straight from public APIs (no
 API keys needed); the only local backend is a tiny Python server
-(`server.py`) that serves the page and saves favorite rides.
+(`server/server.py`) that serves the page and saves favorite rides.
 
 It covers one Disney resort at a time, chosen in the
 [setup wizard](#setup-wizard):
@@ -23,6 +23,8 @@ Everything is shown in the resort's local time.
 > This is an unofficial fan project. It isn't affiliated with, endorsed by, or
 > sponsored by Disney. Park and attraction names are used only to identify the
 > data shown.
+
+![The carousel: Seven Dwarfs Mine Train at a 60-minute wait, with park weather, today's hours, and the landmark skyline](docs/screenshots/carousel.png)
 
 ## Features
 
@@ -46,6 +48,8 @@ switching back brings them back.
 ### Two views
 
 Toggle between them with the button in the top-right corner.
+
+![The grid: Magic Kingdom's rides, grouped and sorted by wait time](docs/screenshots/grid.png)
 
 - **Carousel** (default): one ride at a time, with a big name and wait time,
   auto-advancing every ~4.5 seconds. Tap the arrows to move forward or back,
@@ -145,6 +149,9 @@ keeps its own list across reboots and updates.
 The first time the kiosk starts, it runs a setup wizard on the touchscreen,
 with no keyboard, phone, or computer needed:
 
+![The setup wizard's "Which Disney resort?" step](docs/screenshots/setup-resort.png)
+
+
 1. **Country.** This also sets the Wi-Fi region (Wi-Fi channels differ by
    country, so a Pi set to the wrong one may not see the router at all).
 2. **Time zone**, if the country has more than one.
@@ -214,19 +221,35 @@ DSI display port rather than HDMI, and Raspberry Pi OS picks it up without
 extra drivers. If you use one on a Pi 5, check that you have a ribbon cable
 that fits: the Pi 5's display connector is smaller than the Pi 3's and 4's.
 
+## Project layout
+
+```
+install.sh     sets up a Raspberry Pi as a kiosk (see below)
+web/           the dashboard and setup wizard: pages, scripts, styles, icons
+server/        server.py (serves web/, saves settings and favorites) and
+               system.py (Wi-Fi, country, and time zone, for the wizard)
+kiosk/         the Pi side: the Chromium launcher, weekly updater, boot
+               splash, wallpaper, and invisible-pointer helper
+tests/         automated tests (see Tests)
+docs/          screenshots for this README
+```
+
+Only `web/` is served over the network; the rest of the project, including
+`.git`, isn't reachable from the kiosk's web server.
+
 ## Try it on your computer
 
 ```
 git clone https://github.com/davelund750/wdw-wait-times.git
 cd wdw-wait-times
-python3 server.py
+python3 server/server.py
 ```
 
 Then open http://localhost:8000 in a browser. The first time, the setup
 wizard comes up. On a computer that isn't a Pi, the server only pretends to
 change Wi-Fi, country, and time zone (it prints "pretend system" at startup):
 any Wi-Fi password works except ones starting with "wrong", and
-`WDW_FAKE_OFFLINE=1 python3 server.py` simulates a kiosk with no internet. To see roughly how it will look
+`WDW_FAKE_OFFLINE=1 python3 server/server.py` simulates a kiosk with no internet. To see roughly how it will look
 on a small touchscreen, shrink the window to about 800x480 or 1024x600.
 
 The server doesn't send cache-control headers for the app's files, so after
@@ -293,7 +316,7 @@ you want it to set up Wi-Fi. In order, it:
   serving the app on `http://localhost:8000` and restarting it if it ever
   stops. Browsers block the app's data requests from a page opened as a
   plain file, which is why a server is needed at all.
-- **Starts the kiosk at login** via `kiosk.sh`, which:
+- **Starts the kiosk at login** via `kiosk/kiosk.sh`, which:
   - waits for the local server and the internet before launching Chromium;
   - starts Chromium from a fresh profile on every boot, because a reboot
     shuts Chromium down uncleanly and a profile left in that state can leave
@@ -305,14 +328,14 @@ you want it to set up Wi-Fi. In order, it:
     starting, via `kiosk_navigate.py`;
   - logs each boot to `~/.cache/wdw-kiosk.log`.
 - **Tidies the desktop around the kiosk**, as personal settings layered over
-  the system defaults: a "Magic Loading…" wallpaper (`kiosk-wallpaper.png`)
+  the system defaults: a "Magic Loading…" wallpaper (`kiosk/wallpaper.jpg`)
   with no desktop icons, an auto-hiding taskbar with pop-up notifications
   turned off (they'd otherwise keep popping it back into view), and an
   invisible mouse pointer. The pointer uses a transparent pointer theme built
-  by `make_blank_cursor_theme.py`, since on a touchscreen the pointer never
+  by `kiosk/make_blank_cursor_theme.py`, since on a touchscreen the pointer never
   moves and the page alone can't hide it.
 - **Replaces the boot screen** with a "Magic Starting…" splash (a small
-  Plymouth theme in `boot-splash/`). Switching it takes about a minute, so
+  Plymouth theme in `kiosk/boot-splash/`). Switching it takes about a minute, so
   re-runs skip it when nothing has changed. To restore the stock splash:
   `sudo plymouth-set-default-theme -R pix`.
 - **Trims boot work the kiosk doesn't need**: disables cloud-init (which only
@@ -336,7 +359,7 @@ earlier output rather than adding to it.
 ## Updates
 
 A Pi installed from a git clone keeps itself up to date. Every Sunday at 4:00
-AM (the Pi's local time), `update.sh` pulls the latest version from the
+AM (the Pi's local time), `kiosk/update.sh` pulls the latest version from the
 repository it was cloned from, re-runs `./install.sh` if anything changed (so
 setup changes apply too, not just the app itself), and reboots. It reboots
 every week even when there's nothing new, which also clears Chromium's memory
@@ -385,7 +408,7 @@ tested without a browser (it never touches the page or the network), and
   landmark), time zone, and weather location. themeparks.wiki also covers
   other parks (e.g. Walt Disney World's water parks, Hong Kong Disneyland) if
   you want to add them; a new resort also needs its id added to
-  `SETTINGS_VALUES` in `server.py` (a test checks the two match).
+  `SETTINGS_VALUES` in `server/server.py` (a test checks the two match).
 - **Landmark drawings:** `landmarks.js` holds every landmark as line art, in
   one shared coordinate system (millimetres, as for the 3D-printed frames)
   so they keep their true relative sizes. Each has white outline paths, a
@@ -407,8 +430,8 @@ tested without a browser (it never touches the page or the network), and
   Fonts, loaded at runtime (the kiosk needs internet access for these too).
 
 Park branding is kept to original artwork: each park is represented by a
-simple line drawing of its landmark (`landmarks.js`; the original Walt
-Disney World artwork is in `landmarks/`), paired with the playful Baloo 2
+simple line drawing of its landmark (`web/landmarks.js`), paired with the
+playful Baloo 2
 display font and a small cursive wordmark with the resort's name. The browser tab
 icon (`favicon.svg`, plus PNG versions for older browsers and phone home
 screens) is the same castle, filled in.

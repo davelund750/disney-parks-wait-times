@@ -10,6 +10,26 @@ The project doesn't use version numbers, so sections are dated instead.
 
 ## Unreleased
 
+### Added
+- README screenshots: the carousel, the grid, and the setup wizard's resort
+  step (in `docs/screenshots/`).
+
+### Changed
+- The project is organized into folders: `web/` (the dashboard and setup
+  wizard), `server/`, and `kiosk/` (the Pi side), with `install.sh` still at
+  the top. Installed kiosks move over on their next update: it pulls the new
+  layout and reruns the installer, which points everything at the new
+  locations.
+- The kiosk's wallpaper is a much smaller file (37 KB instead of 425 KB),
+  with no visible difference.
+- Removed the unused original landmark artwork (`landmarks/`), superseded by
+  `web/landmarks.js`.
+
+### Fixed
+- The kiosk's web server served the whole project folder, so any device on
+  its network could fetch the scripts, tests, or `.git` data. It now serves
+  only `web/`.
+
 ## 2026-09-27
 
 ### Added

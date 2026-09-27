@@ -12,6 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: the update test replays a kiosk migrating from an
+          # older commit's file layout.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -35,4 +39,4 @@ jobs:
         run: bash tests/test_update.sh
 
       - name: Shell script lint
-        run: shellcheck install.sh kiosk.sh update.sh tests/test_update.sh
+        run: shellcheck install.sh kiosk/kiosk.sh kiosk/update.sh tests/test_update.sh
