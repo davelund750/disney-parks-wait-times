@@ -12,6 +12,10 @@ kiosks installed whatever was on `main` each week.
 
 ## Unreleased
 
+No current unreleased changes.
+
+## 1.1.0 - 2026-09-27
+
 ### Added
 - Tap a card in the grid to see it full size, like a carousel card: the
   whole name (long names can be cut off on the small cards), its park, the
