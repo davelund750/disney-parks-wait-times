@@ -10,6 +10,12 @@ The project doesn't use version numbers, so sections are dated instead.
 
 ## Unreleased
 
+## 2026-09-27
+
+### Added
+- README: an Acknowledgments section, thanking Kayleigh Lund for UI/UX
+  design feedback and testing.
+
 ## 2026-09-26
 
 ### Added

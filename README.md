@@ -374,6 +374,10 @@ Park branding is kept to original artwork: each park is represented by a
 simple line drawing of its landmark (`landmarks/`), paired with the playful
 Baloo 2 display font and a small cursive "Walt Disney World" wordmark.
 
+## Acknowledgments
+
+Thanks to **Kayleigh Lund** for UI/UX design feedback and testing.
+
 ## License
 
 The code is released under the [MIT License](LICENSE). That covers this
