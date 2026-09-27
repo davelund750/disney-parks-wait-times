@@ -372,7 +372,9 @@ tested without a browser (it never touches the page or the network), and
 
 Park branding is kept to original artwork: each park is represented by a
 simple line drawing of its landmark (`landmarks/`), paired with the playful
-Baloo 2 display font and a small cursive "Walt Disney World" wordmark.
+Baloo 2 display font and a small cursive "Walt Disney World" wordmark. The browser tab
+icon (`favicon.svg`, plus PNG versions for older browsers and phone home
+screens) is the same castle, filled in.
 
 ## Acknowledgments
 

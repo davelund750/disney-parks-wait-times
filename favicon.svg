@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="30 -1.5 46 46">
+  <!-- The dashboard's filled Cinderella Castle landmark (index.html), white
+       with an open doorway, on a rounded square in the app's background. -->
+  <rect x="30" y="-1.5" width="46" height="46" rx="9" fill="#0d1117"/>
+  <path d="M42 41 V31 H43 V28 L44 24 L45 28 V31 H46 V26 H47 V22 L48 19 L49 22 V20 H50 V14 L51 11 L52 14 L53 2 L54 14 L55 11 L56 14 V20 H57 V22 L58 19 L59 22 V26 H60 V29 L61 26 L62 29 V31 H63 V35 H64 V41 Z" fill="#ffffff"/>
+  <path d="M50.5 41 V38 Q53 35 55.5 38 V41 Z" fill="#0d1117"/>
+</svg>

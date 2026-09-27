@@ -13,6 +13,9 @@ The project doesn't use version numbers, so sections are dated instead.
 ## 2026-09-27
 
 ### Added
+- A browser tab icon: the dashboard's filled-in Cinderella Castle on a dark
+  rounded square, with PNG versions for older browsers and for adding the
+  page to a phone's home screen.
 - README: an Acknowledgments section, thanking Kayleigh Lund for UI/UX
   design feedback and testing.
 
