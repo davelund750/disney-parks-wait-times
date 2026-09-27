@@ -1,6 +1,6 @@
 [Plymouth Theme]
-Name=WDW Wait Times
-Description=Magic Starting boot splash for the WDW Wait Times kiosk
+Name=Disney Parks Wait Times
+Description=Magic Starting boot splash for the Disney Parks Wait Times kiosk
 ModuleName=script
 
 [script]

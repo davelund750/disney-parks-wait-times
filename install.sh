@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# WDW Wait Times - Raspberry Pi kiosk installer.
+# Disney Parks Wait Times - Raspberry Pi kiosk installer.
 #
 # Run this ON THE PI, from inside the project folder:
 #   ./install.sh            (prompts for Wi-Fi setup)
@@ -40,7 +40,7 @@ if [ -z "$APP_HOME" ]; then
   exit 1
 fi
 
-echo "==> Installing WDW Wait Times kiosk"
+echo "==> Installing Disney Parks Wait Times kiosk"
 echo "    App folder : $APP_DIR"
 echo "    Running as : $APP_USER ($APP_HOME)"
 echo
@@ -83,7 +83,7 @@ echo
 echo "==> Installing systemd service (wdw-wait-times.service)"
 sudo tee /etc/systemd/system/wdw-wait-times.service >/dev/null <<EOF
 [Unit]
-Description=WDW Wait Times server
+Description=Disney Parks Wait Times server
 After=network-online.target
 
 [Service]
@@ -116,7 +116,7 @@ mkdir -p "$APP_HOME/.config/autostart"
 cat > "$APP_HOME/.config/autostart/wdw-wait-times.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=WDW Wait Times
+Name=Disney Parks Wait Times
 Exec=$APP_DIR/kiosk/kiosk.sh
 X-GNOME-Autostart-enabled=true
 EOF
@@ -260,10 +260,25 @@ echo
 # reboots. Only possible when this folder is a git checkout.
 echo "==> Installing weekly update timer (Sundays 4:00 AM)"
 if [ -d "$APP_DIR/.git" ]; then
+  # The project was renamed from wdw-wait-times on GitHub. GitHub redirects
+  # the old address, but only until something else takes that name, so point
+  # older kiosks at the new one. (git runs as the folder's owner: as root,
+  # e.g. from update.sh, it refuses a repo someone else owns.)
+  as_app_user() {
+    if [ "$(id -u)" -eq 0 ] && [ "$APP_USER" != "root" ]; then runuser -u "$APP_USER" -- "$@"; else "$@"; fi
+  }
+  origin="$(as_app_user git -C "$APP_DIR" remote get-url origin 2>/dev/null || true)"
+  case "$origin" in
+    *davelund750/wdw-wait-times*)
+      as_app_user git -C "$APP_DIR" remote set-url origin "${origin/wdw-wait-times/disney-parks-wait-times}"
+      echo "    Updates now come from $(as_app_user git -C "$APP_DIR" remote get-url origin)"
+      ;;
+  esac
+
   chmod +x "$APP_DIR/kiosk/update.sh"
   sudo tee /etc/systemd/system/wdw-update.service >/dev/null <<EOF
 [Unit]
-Description=WDW Wait Times weekly update and reboot
+Description=Disney Parks Wait Times weekly update and reboot
 Wants=network-online.target
 After=network-online.target
 
@@ -273,7 +288,7 @@ ExecStart=$APP_DIR/kiosk/update.sh
 EOF
   sudo tee /etc/systemd/system/wdw-update.timer >/dev/null <<EOF
 [Unit]
-Description=Run the WDW Wait Times weekly update
+Description=Run the Disney Parks Wait Times weekly update
 
 [Timer]
 OnCalendar=Sun *-*-* 04:00:00

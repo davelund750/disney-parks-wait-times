@@ -661,7 +661,7 @@ const aboutTab = {
       doneStep.render(); // the "Checking for updates…" screen
       return;
     }
-    els.step.appendChild(el("h1", "setup-title", "WDW Wait Times"));
+    els.step.appendChild(el("h1", "setup-title", "Disney Parks Wait Times"));
     els.step.appendChild(el("p", "setup-text", `Version: ${wizard.status.version || "unknown"}`));
     els.step.appendChild(el("p", "setup-text dim", "It installs new versions by itself every Sunday at 4 AM, then restarts."));
     if (wizard.status.online) {

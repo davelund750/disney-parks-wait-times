@@ -12,7 +12,7 @@
 
 MAX_WAIT_SECS=90
 APP_URL="http://127.0.0.1:8000/?kiosk"  # ?kiosk hides the mouse pointer
-APP_TITLE="WDW Wait Times"
+APP_TITLE="Disney Parks Wait Times"
 DEBUG_PORT=9222
 LOAD_TIMEOUT_SECS=60
 MAX_RETRIES=3

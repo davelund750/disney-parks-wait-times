@@ -12,7 +12,13 @@ kiosks installed whatever was on `main` each week.
 
 ## Unreleased
 
-No current unreleased changes.
+### Changed
+- Renamed from WDW Wait Times to Disney Parks Wait Times, now that it
+  covers every Disney resort: on the dashboard, setup and Settings screens,
+  the installer, and GitHub, where the project is now
+  `davelund750/disney-parks-wait-times`. Installed kiosks switch to the new
+  address on their next update; their folder, saved settings, and favorites
+  stay where they are.
 
 ## 1.1.0 - 2026-09-27
 

@@ -1,4 +1,4 @@
-# WDW Wait Times
+# Disney Parks Wait Times
 
 A kiosk-style dashboard for Disney park wait times, built to run
 full-screen on a Raspberry Pi with a small touchscreen. It's plain
@@ -251,8 +251,8 @@ Only `web/` is served over the network; the rest of the project, including
 ## Try it on your computer
 
 ```
-git clone https://github.com/davelund750/wdw-wait-times.git
-cd wdw-wait-times
+git clone https://github.com/davelund750/disney-parks-wait-times.git
+cd disney-parks-wait-times
 make start
 ```
 
@@ -293,8 +293,8 @@ from another computer:
    clone the project and run the installer. Wi-Fi is already set up from step
    1, so skip that part of the installer:
    ```
-   git clone https://github.com/davelund750/wdw-wait-times.git ~/wdw-wait-times
-   cd ~/wdw-wait-times && ./install.sh --skip-wifi
+   git clone https://github.com/davelund750/disney-parks-wait-times.git ~/disney-parks-wait-times
+   cd ~/disney-parks-wait-times && ./install.sh --skip-wifi
    ```
    Clone it (rather than copying the files over) so the Pi can
    [update itself](#updates). If you've forked the project, clone your fork:
@@ -393,7 +393,7 @@ features, and the third for fixes only.
   changes."), push to `main`, wait for GitHub's tests to
   pass, then run `make release VERSION=1.2.0`. It checks all of that, dates
   the changelog section, tags the release, pushes it, and creates a
-  [GitHub Release](https://github.com/davelund750/wdw-wait-times/releases)
+  [GitHub Release](https://github.com/davelund750/disney-parks-wait-times/releases)
   with the same notes. It needs the [GitHub CLI](https://cli.github.com)
   (`gh`), signed in.
 - **Withdraw a bad release:** delete its tag on GitHub
@@ -404,7 +404,8 @@ features, and the third for fixes only.
   or `sudo systemctl start wdw-update.service` over SSH (the Pi reboots when
   done).
 - **See which version a Pi has:** hold ⚙, then About, or
-  `git -C ~/wdw-wait-times describe --tags` over SSH.
+  `git -C ~/disney-parks-wait-times describe --tags` over SSH (`~/wdw-wait-times`
+  on a kiosk installed before the project was renamed in 1.2.0).
 - **See what changed:** [CHANGELOG.md](CHANGELOG.md) lists each release's
   changes.
 - **See what happened on a Pi:** `cat /var/log/wdw-update.log`

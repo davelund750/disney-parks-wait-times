@@ -141,7 +141,7 @@ class ServerTest(unittest.TestCase):
     def test_the_app_itself_is_served(self):
         status, body = self.request("GET", "/")
         self.assertEqual(status, 200)
-        self.assertIn(b"<title>WDW Wait Times</title>", body)
+        self.assertIn(b"<title>Disney Parks Wait Times</title>", body)
         self.assertEqual(self.request("GET", "/logic.js")[0], 200)
 
     # ---- settings ----
