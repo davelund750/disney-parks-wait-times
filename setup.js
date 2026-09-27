@@ -1,10 +1,12 @@
-// Setup wizard: country (and with it the Wi-Fi region), time zone, display
-// preferences, and Wi-Fi, all from the touchscreen, with a built-in keyboard
+// Setup wizard: country (and with it the Wi-Fi region), time zone, which
+// Disney resort to show, display preferences, and Wi-Fi, all from the touchscreen, with a built-in keyboard
 // (the desktop's own on-screen keyboard can't appear over the full-screen
 // kiosk). The dashboard opens it:
 //   - on first start, before setup is complete (all steps);
 //   - with ?wifi when it can't get online (just the Wi-Fi step);
-//   - with ?settings from its settings button (all steps, cancelable).
+//   - with ?settings from its settings button, once setup is done: a
+//     tabbed Settings screen (Resort, Display, Wi-Fi, Location, Reset),
+//     where each change is saved as soon as it's tapped.
 // The /api/system endpoints it uses are in server.py and system.py.
 
 const params = new URLSearchParams(location.search);
@@ -18,6 +20,8 @@ const COMMON_COUNTRIES = ["US", "JP", "GB", "CA", "AU", "MX", "DE", "FR", "BR", 
 // steps): where clocks are usually 12-hour, and temperatures in °F.
 const TWELVE_HOUR = new Set(["US", "CA", "AU", "NZ", "IN", "PH", "PK", "EG", "SA", "CO"]);
 const FAHRENHEIT = new Set(["US", "LR", "MM", "BS", "KY", "BZ", "PW", "FM", "MH"]);
+// The resort offered first for a country (see defaultResort).
+const RESORT_BY_COUNTRY = { JP: "tdr", FR: "dlp", CN: "shdr" };
 
 const els = {
   step: document.getElementById("step"),
@@ -26,6 +30,8 @@ const els = {
   back: document.getElementById("back"),
   next: document.getElementById("next"),
   cancel: document.getElementById("cancel"),
+  wordmark: document.getElementById("wordmark"),
+  tabs: document.getElementById("tabs"),
 };
 
 const wizard = {
@@ -34,6 +40,8 @@ const wizard = {
   countries: [],
   country: null, // "JP"
   timezone: null, // "Asia/Tokyo"
+  resort: null, // "wdw", ... (RESORTS in logic.js)
+  resortPicked: false, // chosen by tapping, rather than defaulted
   units: "F",
   clock: "12",
   status: {}, // /api/system/status
@@ -41,6 +49,7 @@ const wizard = {
   // slow on a Pi 3), so the first screen can show right away.
   loaded: false,
   loading: null, // a promise, while they load
+  settingsMode: false, // the tabbed Settings screen, rather than the steps
 };
 
 async function api(path, method = "GET", body) {
@@ -87,13 +96,14 @@ function timeIn(zone, hour12) {
 // ---- navigation ----
 
 function setFooter({ next = "Next", nextEnabled = true, back = wizard.index > 0, hidden = false } = {}) {
-  els.footer.hidden = hidden;
+  els.footer.hidden = hidden || wizard.settingsMode; // Settings saves each tap instead
   els.next.textContent = next;
   els.next.disabled = !nextEnabled;
   els.back.hidden = !back;
 }
 
 function renderProgress() {
+  if (wizard.settingsMode) return renderSettingsTabs();
   els.progress.innerHTML = "";
   wizard.steps.forEach((step, i) => {
     const dot = el("span", "dot" + (i === wizard.index ? " current" : i < wizard.index ? " done" : ""));
@@ -145,8 +155,34 @@ function goBack() {
   if (prev >= 0) showStep(prev);
 }
 
-function showNotice(text) {
-  const notice = el("div", "setup-notice", text);
+// Connected (or already were): move on in setup; in Settings, stay on the
+// Wi-Fi tab with the updated list.
+function wifiFinished() {
+  if (wizard.settingsMode) redraw();
+  else goNext();
+}
+
+// A choice was tapped. During setup it's saved when moving to the next step;
+// in Settings it's saved right away.
+async function changed(step) {
+  redraw();
+  if (!wizard.settingsMode) return;
+  try {
+    if (step === countryStep) {
+      // The country can move the time zone (to one of its own), so save both.
+      await step.save();
+      await timezoneStep.save();
+    } else {
+      await step.save();
+    }
+    showNotice("Saved", "ok");
+  } catch (err) {
+    showNotice("That setting couldn't be saved on this device.");
+  }
+}
+
+function showNotice(text, kind = "warn") {
+  const notice = el("div", `setup-notice ${kind}`, text);
   document.body.appendChild(notice);
   setTimeout(() => notice.remove(), 4000);
 }
@@ -181,7 +217,7 @@ const countryStep = {
       }
       wizard.country = code;
       fitTimezoneToCountry();
-      redraw();
+      changed(countryStep);
     };
 
     els.step.appendChild(el("h1", "setup-title", "Where is this display?"));
@@ -245,7 +281,7 @@ const timezoneStep = {
       btn.append(el("span", "choice-label", zoneLabel(zone)), el("span", "choice-meta", timeIn(zone, wizard.clock === "12")));
       btn.addEventListener("click", () => {
         wizard.timezone = zone;
-        redraw();
+        changed(timezoneStep);
       });
       list.appendChild(btn);
     }
@@ -254,6 +290,47 @@ const timezoneStep = {
   },
   async save() {
     await api("/api/system/timezone", "PUT", { timezone: wizard.timezone });
+  },
+};
+
+// The likely resort for where the display is: the local one in Japan,
+// France, or China; Disneyland on the US West Coast; otherwise Walt Disney
+// World.
+function defaultResort() {
+  if (RESORT_BY_COUNTRY[wizard.country]) return RESORT_BY_COUNTRY[wizard.country];
+  if (wizard.country === "US" && wizard.timezone === "America/Los_Angeles") return "dlr";
+  return "wdw";
+}
+
+function showResortName() {
+  els.wordmark.textContent = (RESORTS.find((r) => r.id === wizard.resort) || RESORTS[0]).name;
+}
+
+const resortStep = {
+  render() {
+    if (!wizard.resortPicked) wizard.resort = defaultResort();
+    showResortName();
+    els.step.appendChild(el("h1", "setup-title", "Which Disney resort?"));
+    els.step.appendChild(el("p", "setup-text dim", "Its wait times, shows, and weather are what this display shows."));
+    const list = el("div", "choice-list");
+    for (const resort of RESORTS) {
+      const btn = el("button", "choice" + (resort.id === wizard.resort ? " selected" : ""));
+      const art = el("span", "choice-landmark");
+      art.innerHTML = landmarkSvg(resort.parks[0].landmark);
+      const parks = resort.parks.map((park) => park.name).join(" · ");
+      btn.append(art, el("span", "choice-label", resort.name), el("span", "choice-meta", parks));
+      btn.addEventListener("click", () => {
+        wizard.resort = resort.id;
+        wizard.resortPicked = true;
+        changed(resortStep);
+      });
+      list.appendChild(btn);
+    }
+    els.step.appendChild(list);
+    setFooter();
+  },
+  async save() {
+    await api("/api/settings", "PUT", { resort: wizard.resort });
   },
 };
 
@@ -272,7 +349,7 @@ const displayStep = {
         const btn = el("button", "segment" + (value === current ? " selected" : ""), text);
         btn.addEventListener("click", () => {
           onPick(value);
-          redraw();
+          changed(displayStep);
         });
         group.appendChild(btn);
       }
@@ -282,7 +359,7 @@ const displayStep = {
     els.step.append(
       option("Temperature", [["F", "°F"], ["C", "°C"]], wizard.units, (v) => (wizard.units = v)),
       option("Clock", [["12", `12-hour (${time(true)})`], ["24", `24-hour (${time(false)})`]], wizard.clock, (v) => (wizard.clock = v)),
-      el("p", "setup-text dim", "Park hours and show times are always shown in Walt Disney World time.")
+      el("p", "setup-text dim", "Park hours and show times are always shown in the resort's local time.")
     );
     setFooter();
   },
@@ -374,8 +451,8 @@ function chooseNetwork(network) {
   // rewrite the network's saved settings, which can fail, e.g. for a network
   // set up by Raspberry Pi Imager.)
   if (wizard.status.online && network.ssid === wizard.status.ssid) {
-    showNotice(`Already connected to ${network.ssid}.`);
-    goNext();
+    showNotice(`Already connected to ${network.ssid}.`, "ok");
+    wifiFinished();
     return;
   }
   // A saved network connects with its saved settings (the server asks for a
@@ -500,7 +577,8 @@ async function connect() {
     await refreshStatus();
     wifiStep.view = "list";
     wifiStep.error = "";
-    goNext();
+    if (wizard.settingsMode) showNotice(`Connected to ${wifiStep.chosen.ssid}.`, "ok");
+    wifiFinished();
   } else {
     wifiStep.error = result.message;
     wifiStep.view = wifiStep.chosen.secure ? "password" : "list";
@@ -509,18 +587,149 @@ async function connect() {
 }
 
 const doneStep = {
+  updating: false,
   render() {
     const box = el("div", "setup-center");
-    box.append(
-      el("h1", "setup-title", "You're all set!"),
-      el("p", "setup-text", wizard.status.online ? "Enjoy the wait times." : "Once it's online, wait times will appear."),
-      el("p", "setup-text dim", "To change these settings later, press and hold the ⚙ button on the dashboard.")
-    );
+    if (doneStep.updating) {
+      box.append(
+        el("div", "setup-spinner"),
+        el("h1", "setup-title small", "Checking for updates…"),
+        el("p", "setup-text", "The display will restart in about a minute and a half, then show the wait times.")
+      );
+      els.step.appendChild(box);
+      setFooter({ hidden: true });
+      return;
+    }
+    box.appendChild(el("h1", "setup-title", "You're all set!"));
+    if (wizard.status.online) {
+      // Offer the latest version now, rather than at the next weekly update.
+      box.append(
+        el("p", "setup-text", "Check for updates and restart? It takes about a minute and a half."),
+        el("p", "setup-text dim", "Otherwise it updates itself automatically once a week.")
+      );
+      const actions = el("div", "setup-actions");
+      const update = el("button", "setup-btn primary", "Check for updates and restart");
+      update.addEventListener("click", updateAndRestart);
+      const start = el("button", "setup-btn secondary", "Start using it now");
+      start.addEventListener("click", finish);
+      actions.append(update, start);
+      box.appendChild(actions);
+      setFooter({ hidden: true });
+    } else {
+      box.appendChild(el("p", "setup-text", "Once it's online, wait times will appear."));
+      setFooter({ next: "Start" });
+    }
+    box.appendChild(el("p", "setup-text dim", "To change these settings later, press and hold the ⚙ button on the dashboard."));
     els.step.appendChild(box);
-    setFooter({ next: "Start" });
   },
   save: finish,
 };
+
+async function updateAndRestart() {
+  // Mark setup done first, so the restart comes back to the dashboard.
+  await api("/api/settings", "PUT", { setupComplete: true }).catch(() => {});
+  doneStep.updating = true;
+  redraw();
+  const result = await api("/api/system/update", "PUT", {}).catch(() => ({ ok: false }));
+  if (!result.ok) {
+    showNotice("Couldn't check for updates now; it will update itself later.");
+    setTimeout(finish, 3000);
+  } else if (wizard.status.fake) {
+    // Not a Pi: nothing will restart, so carry on to the dashboard.
+    setTimeout(finish, 3000);
+  }
+}
+
+// ---- Settings (after setup) ----
+
+// Country and time zone, together on one tab.
+const locationTab = {
+  render() {
+    countryStep.render();
+    if (!timezoneStep.skip()) timezoneStep.render();
+  },
+};
+
+// Factory reset: erases everything the user has set up, saved Wi-Fi networks
+// included, so the kiosk starts over with first-time setup as if new (e.g.
+// before giving it to someone else).
+const resetTab = {
+  confirming: false,
+  render() {
+    if (!resetTab.confirming) {
+      els.step.appendChild(el("h1", "setup-title", "Factory reset"));
+      els.step.appendChild(el("p", "setup-text", "Start over as if this display were brand new: the setup steps run again on the next screen."));
+      els.step.appendChild(el("p", "setup-text dim", "Saved Wi-Fi networks are forgotten too."));
+      const start = el("button", "setup-link danger", "Factory reset…");
+      start.addEventListener("click", () => {
+        resetTab.confirming = true;
+        redraw();
+      });
+      els.step.appendChild(start);
+      return;
+    }
+    els.step.appendChild(el("h1", "setup-title", "Erase everything?"));
+    const list = el("ul", "setup-text reset-list");
+    for (const item of [
+      "Your resort, temperature, and clock choices",
+      "All favorites and ignored items, at every resort",
+      "The trip countdown date",
+      "Saved Wi-Fi networks: the display goes offline until it's set up again",
+    ]) {
+      list.appendChild(el("li", "", item));
+    }
+    els.step.appendChild(list);
+    els.step.appendChild(el("p", "setup-text dim", "This can't be undone. Do it on the display itself: a remote connection to it will drop."));
+    const actions = el("div", "setup-actions");
+    const cancel = el("button", "setup-link", "Cancel");
+    cancel.addEventListener("click", () => {
+      resetTab.confirming = false;
+      redraw();
+    });
+    const erase = el("button", "setup-link danger strong", "Erase everything");
+    erase.addEventListener("click", factoryReset);
+    actions.append(cancel, erase);
+    els.step.appendChild(actions);
+  },
+};
+
+async function factoryReset() {
+  try {
+    await api("/api/system/reset", "PUT", {});
+  } catch (err) {
+    showNotice("The reset couldn't be done on this device.");
+    return;
+  }
+  // What this browser remembers too (trip date, view, open grid groups).
+  try {
+    localStorage.clear();
+  } catch (err) {
+    // Nothing saved here, or storage is off; nothing to clear.
+  }
+  // The dashboard sees setup isn't done and starts first-time setup.
+  location.replace(dashboardUrl);
+}
+
+const SETTINGS_TABS = [
+  { label: "Resort", step: resortStep },
+  { label: "Display", step: displayStep },
+  { label: "Wi-Fi", step: wifiStep },
+  { label: "Location", step: locationTab },
+  { label: "Reset", step: resetTab },
+];
+
+function renderSettingsTabs() {
+  els.tabs.innerHTML = "";
+  SETTINGS_TABS.forEach((tab, i) => {
+    const btn = el("button", "settings-tab" + (i === wizard.index ? " selected" : ""), tab.label);
+    btn.addEventListener("click", () => {
+      if (tab.step === wifiStep) wifiStep.view = "list";
+      resetTab.confirming = false;
+      showStep(i);
+    });
+    els.tabs.appendChild(btn);
+  });
+}
 
 // ---- keyboard ----
 
@@ -590,6 +799,10 @@ async function loadSystemData(settings) {
   wizard.timezone = wizard.status.timezone || null;
   wizard.units = settings.units || (FAHRENHEIT.has(wizard.country) ? "F" : "C");
   wizard.clock = settings.clock || (TWELVE_HOUR.has(wizard.country) ? "12" : "24");
+  if (settings.resort) {
+    wizard.resort = settings.resort;
+    wizard.resortPicked = true;
+  }
   wizard.loaded = true;
 }
 
@@ -597,15 +810,22 @@ async function start() {
   // Only the saved settings (a quick file read) are needed to pick the first
   // screen; everything else loads while it's showing.
   const settings = await api("/api/settings").catch(() => ({}));
+  wizard.resort = settings.resort || "wdw";
+  showResortName();
   wizard.loading = loadSystemData(settings);
 
   if (params.has("wifi")) {
     // Offline: just get connected, then back to the dashboard.
     wizard.steps = [wifiStep, { render: () => finish() }];
   } else {
-    wizard.steps = [welcomeStep, countryStep, timezoneStep, displayStep, wifiStep, doneStep];
+    wizard.steps = [welcomeStep, countryStep, timezoneStep, resortStep, displayStep, wifiStep, doneStep];
     if (params.has("settings") && settings.setupComplete) {
-      wizard.steps.shift(); // no welcome when changing settings
+      // Already set up: a tabbed Settings screen, to change one thing at a time.
+      wizard.settingsMode = true;
+      wizard.steps = SETTINGS_TABS.map((tab) => tab.step);
+      els.progress.hidden = true;
+      els.tabs.hidden = false;
+      els.cancel.textContent = "Done";
       els.cancel.hidden = false;
       els.cancel.addEventListener("click", () => location.replace(dashboardUrl));
     }

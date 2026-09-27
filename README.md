@@ -1,13 +1,24 @@
 # WDW Wait Times
 
-A kiosk-style dashboard for Walt Disney World ride wait times, built to run
+A kiosk-style dashboard for Disney park wait times, built to run
 full-screen on a Raspberry Pi with a small touchscreen. It's plain
 HTML/CSS/JS with no build step. Live data comes straight from public APIs (no
 API keys needed); the only local backend is a tiny Python server
 (`server.py`) that serves the page and saves favorite rides.
 
-It covers Magic Kingdom, EPCOT, Hollywood Studios, and Animal Kingdom. Ride
-wait times and park hours refresh every 5 minutes; weather every 15.
+It covers one Disney resort at a time, chosen in the
+[setup wizard](#setup-wizard):
+
+| Resort | Parks |
+|---|---|
+| Walt Disney World | Magic Kingdom, EPCOT, Hollywood Studios, Animal Kingdom |
+| Disneyland Resort | Disneyland Park, California Adventure |
+| Disneyland Paris | Disneyland Park, Disney Adventure World |
+| Tokyo Disney Resort | Tokyo Disneyland, Tokyo DisneySea |
+| Shanghai Disney Resort | Shanghai Disneyland |
+
+Ride wait times and park hours refresh every 5 minutes; weather every 15.
+Everything is shown in the resort's local time.
 
 > This is an unofficial fan project. It isn't affiliated with, endorsed by, or
 > sponsored by Disney. Park and attraction names are used only to identify the
@@ -17,16 +28,20 @@ wait times and park hours refresh every 5 minutes; weather every 15.
 
 ### Choosing what to show
 
-- **All Parks** (top-left tab) pools every open ride from all four parks.
+- **All Parks** (top-left tab) pools every open ride from all of the
+  resort's parks.
 - **Favorites** (next to it) shows only the rides you've starred.
-- **A skyline of park landmarks** runs along the bottom: Cinderella Castle,
-  Spaceship Earth, the Tower of Terror, and the Tree of Life. Tap one to show
+- **A skyline of park landmarks** runs along the bottom, one per park (at
+  Walt Disney World: Cinderella Castle, Spaceship Earth, the Tower of Terror,
+  and the Tree of Life). Tap one to show
   just that park; tap it again to go back to All Parks. The selected park's
   landmark is filled in. On All Parks and Favorites, the carousel fills in the
   landmark of the park the current ride belongs to.
 
-On startup, the app opens on Favorites if any rides are starred, otherwise on
-All Parks.
+On startup, the app opens on Favorites if any rides at the chosen resort
+are starred, otherwise on All Parks. Favorites and ignored items are kept
+for every resort: switching resorts hides the other resort's picks, and
+switching back brings them back.
 
 ### Two views
 
@@ -133,15 +148,28 @@ with no keyboard, phone, or computer needed:
 1. **Country.** This also sets the Wi-Fi region (Wi-Fi channels differ by
    country, so a Pi set to the wrong one may not see the router at all).
 2. **Time zone**, if the country has more than one.
-3. **Display:** °F or °C, and a 12- or 24-hour clock. Both default to what's
+3. **Resort:** which Disney resort to show. It defaults to the local one in
+   Japan, France, or China, Disneyland on the US West Coast, and otherwise
+   Walt Disney World.
+4. **Display:** °F or °C, and a 12- or 24-hour clock. Both default to what's
    usual in the chosen country, e.g. °C and 24-hour for Japan.
-4. **Wi-Fi:** pick a network and type its password on the built-in keyboard.
-   Networks it already knows are kept.
+5. **Wi-Fi:** pick a network and type its password on the built-in keyboard.
+   Networks it already knows are marked "Saved" and connect with one tap.
+6. **Check for updates:** once it's online, it offers to get the latest
+   version now and restart (about a minute and a half), rather than waiting
+   for the [weekly update](#updates).
 
-Park hours and show times are always in Walt Disney World time. If the kiosk
+Park hours and show times are always in the resort's local time. If the kiosk
 later can't get online (a new router, a changed password), it goes straight
-to the Wi-Fi step by itself. To change any of these settings, press and hold
-the ⚙ button on the dashboard.
+to the Wi-Fi step by itself. To change any of these settings later, press and
+hold the ⚙ button on the dashboard: it opens a Settings screen with tabs
+(Resort, Display, Wi-Fi, Location, Reset), so one thing can be changed
+without going through every step, and each change is saved as soon as it's
+tapped. **Reset** is a factory reset: after a confirmation, it erases the
+settings, all favorites and ignored items, the trip countdown date, and
+every saved Wi-Fi network, and the kiosk starts over with first-time setup
+as if new. It goes offline until it's set up again, so do it on the kiosk
+itself rather than over a remote connection.
 
 The wizard only works on the kiosk itself: other devices on the network can
 view the dashboard, but can't change the kiosk's Wi-Fi, country, or time
@@ -151,8 +179,7 @@ zone. The settings are saved in `~/.local/share/wdw-wait-times/settings.json`.
 
 - **Park Weather** (carousel, top-left): current temperature (°F or °C, as
   chosen in the [setup wizard](#setup-wizard)) and conditions
-  for the Walt Disney World area. The four parks are close enough together to
-  share one reading.
+  for the resort. Its parks are close enough together to share one reading.
 - **Today's Hours** (carousel, top-right): the current park's hours for today.
   If there's a separately ticketed event that evening (such as a holiday
   party), a second line shows "🎟️ Special Event" with its time range. The
@@ -244,10 +271,11 @@ problem), plug in a USB keyboard and mouse temporarily.
 ### Setting one up for someone else
 
 To give a kiosk to someone who can't do any of the above, install it
-yourself as described, then ship it. On first start at its new home, the
+yourself as described and test it on your own Wi-Fi. Then, before shipping
+it, do a **factory reset** (hold ⚙, then Reset): that erases your settings,
+favorites, and Wi-Fi network from it. On first start at its new home, the
 [setup wizard](#setup-wizard) walks them through their country, time zone,
-and Wi-Fi on the touchscreen. It keeps the networks it already knows, so you
-can test it on your own Wi-Fi before shipping.
+resort, and Wi-Fi on the touchscreen.
 
 ### What the installer does
 
@@ -293,9 +321,10 @@ you want it to set up Wi-Fi. In order, it:
 - **Lets the setup wizard change system settings.** The wizard is served by
   `server.py`, which runs without anyone logged in, so by default the system
   would ask for a password for every change. A polkit rule lets it scan for
-  and join Wi-Fi networks and set the time zone, and a sudo rule lets it read
-  and set the Wi-Fi country with `raspi-config` (two-letter codes only).
-  Nothing else is granted.
+  and join Wi-Fi networks, set the time zone, and start the update service
+  (for setup's "check for updates"), and a sudo rule lets it read and set
+  the Wi-Fi country with `raspi-config` (two-letter codes only). Nothing
+  else is granted.
 - **Installs the weekly update timer** (see [Updates](#updates)), if the
   project folder is a git clone.
 - **Turns off screen blanking and turns on desktop auto-login**, so the kiosk
@@ -351,14 +380,21 @@ tested without a browser (it never touches the page or the network), and
 
 ## Customizing
 
-- **Parks:** park IDs are listed in the `PARKS` array at the top of
-  `logic.js`.
-  themeparks.wiki also covers the water parks (Typhoon Lagoon, Blizzard
-  Beach) if you want to add them.
+- **Resorts and parks:** the `RESORTS` table at the top of `logic.js` lists
+  each resort's parks (themeparks.wiki ids, names, short codes, colors, and
+  landmark), time zone, and weather location. themeparks.wiki also covers
+  other parks (e.g. Walt Disney World's water parks, Hong Kong Disneyland) if
+  you want to add them; a new resort also needs its id added to
+  `SETTINGS_VALUES` in `server.py` (a test checks the two match).
+- **Landmark drawings:** `landmarks.js` holds every landmark as line art, in
+  one shared coordinate system (millimetres, as for the 3D-printed frames)
+  so they keep their true relative sizes. Each has white outline paths, a
+  filled silhouette for the selected park, and optional cutouts (like a
+  castle doorway) that stay open when filled. It's generated from the same
+  landmark set as the kiosk's 3D-printed frames, so they match; regenerate
+  it from there rather than editing it by hand.
 - **Carousel speed:** the `SLIDE_MS` constant near the top of `app.js`
   (default 4.5 seconds).
-- **Weather location:** `WEATHER_LAT` and `WEATHER_LON` in `app.js`, one
-  shared point for the whole resort area.
 
 ## Data sources and credits
 
@@ -371,8 +407,9 @@ tested without a browser (it never touches the page or the network), and
   Fonts, loaded at runtime (the kiosk needs internet access for these too).
 
 Park branding is kept to original artwork: each park is represented by a
-simple line drawing of its landmark (`landmarks/`), paired with the playful
-Baloo 2 display font and a small cursive "Walt Disney World" wordmark. The browser tab
+simple line drawing of its landmark (`landmarks.js`; the original Walt
+Disney World artwork is in `landmarks/`), paired with the playful Baloo 2
+display font and a small cursive wordmark with the resort's name. The browser tab
 icon (`favicon.svg`, plus PNG versions for older browsers and phone home
 screens) is the same castle, filled in.
 

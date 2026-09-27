@@ -6,18 +6,90 @@
 // Loaded as a plain script before app.js, which uses these as globals. Under
 // Node (the tests), the same names are exported instead.
 
-// Parks have no emoji: the landmark skyline is their icon.
-const PARKS = [
-  { id: "75ea578a-adc8-4116-a54d-dccb60765ef9", short: "MK", name: "Magic Kingdom", accent: "#1f6feb" },
-  { id: "47f90d2c-e191-4239-a466-5892ef59a88b", short: "EP", name: "EPCOT", accent: "#a371f7" },
-  { id: "288747d1-8b4f-4a64-867e-ea7c9b27bad8", short: "HS", name: "Hollywood Studios", accent: "#f0883e" },
-  { id: "1c84a229-8862-4648-9c71-378ddd2c7693", short: "AK", name: "Animal Kingdom", accent: "#39c5cf" },
+// The Disney resorts the dashboard can show, chosen in the setup wizard.
+// Park ids are themeparks.wiki's; `landmark` names a drawing in landmarks.js
+// (parks have no emoji: the landmark skyline is their icon); `clockLabel`
+// follows the park-time clock ("10:40 PM ET"); `weather` is one shared point
+// for the whole resort.
+const RESORTS = [
+  {
+    id: "wdw",
+    name: "Walt Disney World",
+    timeZone: "America/New_York",
+    clockLabel: "ET",
+    weather: { lat: 28.3852, lon: -81.5639 },
+    parks: [
+      { id: "75ea578a-adc8-4116-a54d-dccb60765ef9", short: "MK", name: "Magic Kingdom", accent: "#1f6feb", landmark: "wdwCastle" },
+      { id: "47f90d2c-e191-4239-a466-5892ef59a88b", short: "EP", name: "EPCOT", accent: "#a371f7", landmark: "spaceshipEarth" },
+      { id: "288747d1-8b4f-4a64-867e-ea7c9b27bad8", short: "HS", name: "Hollywood Studios", accent: "#f0883e", landmark: "towerOfTerror" },
+      { id: "1c84a229-8862-4648-9c71-378ddd2c7693", short: "AK", name: "Animal Kingdom", accent: "#39c5cf", landmark: "treeOfLife" },
+    ],
+  },
+  {
+    id: "dlr",
+    name: "Disneyland Resort",
+    timeZone: "America/Los_Angeles",
+    clockLabel: "PT",
+    weather: { lat: 33.8092, lon: -117.9189 },
+    parks: [
+      { id: "7340550b-c14d-4def-80bb-acdb51d49a66", short: "DL", name: "Disneyland Park", accent: "#1f6feb", landmark: "sleepingBeautyCastle" },
+      { id: "832fcd51-ea19-4e77-85c7-75d5843b127c", short: "DCA", name: "California Adventure", accent: "#f0883e", landmark: "palARound" },
+    ],
+  },
+  {
+    id: "dlp",
+    name: "Disneyland Paris",
+    timeZone: "Europe/Paris",
+    clockLabel: "Paris",
+    weather: { lat: 48.8693, lon: 2.7804 },
+    parks: [
+      { id: "dae968d5-630d-4719-8b06-3d107e944401", short: "DLP", name: "Disneyland Park", accent: "#1f6feb", landmark: "parisCastle" },
+      { id: "ca888437-ebb4-4d50-aed2-d227f7096968", short: "DAW", name: "Disney Adventure World", accent: "#a371f7", landmark: "parisTowerOfTerror" },
+    ],
+  },
+  {
+    id: "tdr",
+    name: "Tokyo Disney Resort",
+    timeZone: "Asia/Tokyo",
+    clockLabel: "Tokyo",
+    weather: { lat: 35.6297, lon: 139.8827 },
+    parks: [
+      // Tokyo's Cinderella Castle is modeled on Walt Disney World's.
+      { id: "3cc919f1-d16d-43e0-8c3f-1dd269bd1a42", short: "TDL", name: "Tokyo Disneyland", accent: "#1f6feb", landmark: "wdwCastle" },
+      { id: "67b290d5-3478-4f23-b601-2f8fb71ba803", short: "TDS", name: "Tokyo DisneySea", accent: "#39c5cf", landmark: "mountPrometheus" },
+    ],
+  },
+  {
+    id: "shdr",
+    name: "Shanghai Disney Resort",
+    timeZone: "Asia/Shanghai",
+    clockLabel: "Shanghai",
+    weather: { lat: 31.1431, lon: 121.6583 },
+    parks: [
+      { id: "ddc4357c-c148-4b36-9888-07894fe75e83", short: "SH", name: "Shanghai Disneyland", accent: "#db61a2", landmark: "enchantedStorybookCastle" },
+    ],
+  },
 ];
+
+// The chosen resort, and its parks. PARKS is changed in place by setResort,
+// so everything holding it (including app.js and the tests) sees the switch.
+const PARKS = [];
+const current = { resort: null };
+
+function setResort(id) {
+  const resort = RESORTS.find((r) => r.id === id) || RESORTS[0];
+  current.resort = resort;
+  PARKS.splice(0, PARKS.length, ...resort.parks);
+  return resort;
+}
+setResort("wdw");
+
+// The chosen resort's time zone: park hours and show times are shown in it.
+const parkTimeZone = () => current.resort.timeZone;
 
 const ALL_PARKS = { id: "ALL", short: "ALL", name: "All Parks", accent: "#f4c542", icon: "\u{1F3A2}" };
 const FAVORITES = { id: "FAV", short: "FAV", name: "Favorites", accent: "#db61a2", icon: "⭐" };
 
-const PARK_TIME_ZONE = "America/New_York";
 // Times and dates on screen always use US style (12-hour, "Sep 15"), rather
 // than the browser's locale: the Pi's Chromium runs as en-GB, which would
 // show 24-hour times.
@@ -236,7 +308,7 @@ function formatTimeOfDay(date) {
     hour: "numeric",
     minute: "2-digit",
     hour12: displayPrefs.hour12,
-    timeZone: PARK_TIME_ZONE,
+    timeZone: parkTimeZone(),
   });
 }
 
@@ -246,7 +318,7 @@ function formatHoursRange(openTime, closeTime) {
 
 // The park-time calendar day of a moment, as "YYYY-MM-DD".
 function parkDayKey(date) {
-  return date.toLocaleDateString("en-CA", { timeZone: PARK_TIME_ZONE });
+  return date.toLocaleDateString("en-CA", { timeZone: parkTimeZone() });
 }
 
 // Labels a future opening time relative to today, to follow "Opening": e.g.
@@ -264,7 +336,7 @@ function formatNextOpen(openTime, now) {
   const dateStr = openTime.toLocaleDateString(DISPLAY_LOCALE, {
     month: "short",
     day: "numeric",
-    timeZone: PARK_TIME_ZONE,
+    timeZone: parkTimeZone(),
   });
   return `${dateStr} at ${timeStr}`;
 }
@@ -417,6 +489,12 @@ function gridRides(data) {
   return entry ? entry.rides : [];
 }
 
+// How many favorites are at the chosen resort (favorites from another resort
+// stay saved, but don't count here).
+function favoritesHere(data) {
+  return ridesAcrossParks(data.parkData, (ride) => data.favorites.has(ride.id)).length;
+}
+
 // The grid's items split in two: `shown`, and `ignored` (listed in their own
 // section at the bottom, so they can be brought back).
 function gridSections(data) {
@@ -466,10 +544,13 @@ function countdownText(tripDate, now) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    RESORTS,
     PARKS,
+    current,
+    setResort,
+    parkTimeZone,
     ALL_PARKS,
     FAVORITES,
-    PARK_TIME_ZONE,
     DISPLAY_LOCALE,
     displayPrefs,
     weatherIcon,
@@ -498,6 +579,7 @@ if (typeof module !== "undefined") {
     ridesAcrossParks,
     gridRides,
     gridSections,
+    favoritesHere,
     gridGroups,
     pad2,
     dateKey,

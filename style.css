@@ -404,6 +404,12 @@ main {
   pointer-events: none; /* only the landmarks themselves take taps */
 }
 
+/* Resorts with one or two parks: spread them evenly rather than pinning
+   them to the far edges. */
+.skyline.few {
+  justify-content: space-evenly;
+}
+
 .landmark-btn {
   pointer-events: auto;
   height: 100%;

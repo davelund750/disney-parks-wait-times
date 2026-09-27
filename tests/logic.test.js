@@ -10,6 +10,42 @@ const [MK, EP, HS, AK] = L.PARKS;
 // A moment in park time (US Eastern, which is UTC-4 in these September dates).
 const eastern = (isoLocal) => new Date(`${isoLocal}-04:00`);
 
+// ---- resorts ----
+
+const { LANDMARKS } = require("../landmarks.js");
+
+test("every resort is complete: parks with landmarks, a time zone, a weather point", () => {
+  const parkIds = new Set();
+  for (const resort of L.RESORTS) {
+    assert.ok(resort.name && resort.clockLabel, resort.id);
+    assert.doesNotThrow(() => new Date().toLocaleString("en-US", { timeZone: resort.timeZone }), resort.id);
+    assert.ok(Math.abs(resort.weather.lat) <= 90 && Math.abs(resort.weather.lon) <= 180, resort.id);
+    assert.ok(resort.parks.length >= 1, resort.id);
+    const shorts = resort.parks.map((park) => park.short);
+    assert.equal(new Set(shorts).size, shorts.length, `${resort.id}: short codes must differ`);
+    for (const park of resort.parks) {
+      assert.ok(LANDMARKS[park.landmark], `${park.name}: no drawing named ${park.landmark}`);
+      assert.ok(!parkIds.has(park.id), `${park.name}: park id used twice`);
+      parkIds.add(park.id);
+    }
+  }
+});
+
+test("switching resorts switches the parks and the park time zone", () => {
+  try {
+    L.setResort("tdr");
+    assert.deepEqual(L.PARKS.map((p) => p.short), ["TDL", "TDS"]);
+    assert.equal(L.parkTimeZone(), "Asia/Tokyo");
+    // 9:00 AM in Tokyo is 8:00 PM the day before in Orlando.
+    assert.equal(L.formatTimeOfDay(new Date("2026-09-27T09:00:00+09:00")), "9:00 AM");
+    L.setResort("nowhere"); // unknown: back to Walt Disney World
+    assert.equal(L.current.resort.id, "wdw");
+  } finally {
+    L.setResort("wdw");
+  }
+  assert.equal(L.PARKS.length, 4);
+});
+
 // ---- rides ----
 
 test("badge colors follow the wait-time thresholds", () => {
@@ -405,6 +441,12 @@ test("ignoring a closed park's only running ride doesn't make it look closed", (
   // MK is closed to regular guests, but mk1 is running (an event night).
   const slides = L.buildSlides(sample({ activeParkId: MK.id, ignored: new Set(["mk1"]) }));
   assert.deepEqual(describe(slides), []);
+});
+
+test("only favorites at the chosen resort count", () => {
+  assert.equal(L.favoritesHere(sample({ favorites: new Set(["mk1", "hs2"]) })), 2);
+  // Favorites saved at another resort (ids not in this resort's data).
+  assert.equal(L.favoritesHere(sample({ favorites: new Set(["from-another-resort"]) })), 0);
 });
 
 test("grid: ignored items move to their own section, still in display order", () => {

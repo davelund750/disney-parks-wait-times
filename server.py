@@ -8,7 +8,8 @@ folder, so updating the app never overwrites them):
   GET/PUT /api/favorites   JSON list of favorited ride ids
   GET/PUT /api/ignored     JSON list of ride ids hidden from the dashboard
   GET/PUT /api/settings    JSON object: setupComplete, units ("F"/"C"),
-                           clock ("12"/"24"); PUT merges in the given keys
+                           clock ("12"/"24"), resort ("wdw", "dlr", ...);
+                           PUT merges in the given keys
 
 For the setup wizard (see system.py). These change the Pi itself, so they
 only answer requests from the Pi, never from elsewhere on the network:
@@ -19,6 +20,11 @@ only answer requests from the Pi, never from elsewhere on the network:
   PUT /api/system/wifi        {ssid, password, hidden} -> {ok, message}
   PUT /api/system/country     {code}       e.g. "JP"; sets the Wi-Fi region
   PUT /api/system/timezone    {timezone}   e.g. "Asia/Tokyo"
+  PUT /api/system/update      check for updates now (the weekly update's
+                              update.sh), then reboot
+  PUT /api/system/reset       factory reset: erases settings, favorites,
+                              ignored items, and saved Wi-Fi networks, so
+                              the kiosk starts over with the setup wizard
 
 Usage: python3 server.py   (PORT and WDW_DATA_DIR env vars override defaults)
 """
@@ -40,7 +46,13 @@ LISTS = {
 SETTINGS_FILE = "settings.json"
 SETTINGS_PATH = "/api/settings"
 # Allowed settings and their allowed values (None: any true/false).
-SETTINGS_VALUES = {"setupComplete": None, "units": ("F", "C"), "clock": ("12", "24")}
+# (Resort ids are the ones in RESORTS in logic.js.)
+SETTINGS_VALUES = {
+    "setupComplete": None,
+    "units": ("F", "C"),
+    "clock": ("12", "24"),
+    "resort": ("wdw", "dlr", "dlp", "tdr", "shdr"),
+}
 SYSTEM_PREFIX = "/api/system/"
 LOCAL_ADDRESSES = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 PORT = int(os.environ.get("PORT", "8000"))
@@ -86,6 +98,14 @@ def valid_setting(key, value):
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=APP_DIR, **kwargs)
+
+    def end_headers(self):
+        # The app's files: let browsers cache them, but check for a newer
+        # version on every load (an unchanged file is a quick "not modified").
+        # Otherwise a browser can mix an updated file with stale ones.
+        if not self.path.startswith("/api/"):
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
 
     def do_GET(self):
         if self.path in LISTS:
@@ -179,6 +199,16 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_error(400, "code must be a two-letter country code, e.g. JP")
                 return
             self.send_json(200, {"ok": SYSTEM.set_country(code)})
+        elif action == "update":
+            self.send_json(200, {"ok": SYSTEM.start_update()})
+        elif action == "reset":
+            for filename in [SETTINGS_FILE, *LISTS.values()]:
+                try:
+                    os.remove(os.path.join(DATA_DIR, filename))
+                except FileNotFoundError:
+                    pass
+            # Last, since it takes the kiosk offline.
+            self.send_json(200, {"ok": True, "forgotWifi": SYSTEM.forget_wifi()})
         elif action == "timezone":
             name = body.get("timezone")
             if not isinstance(name, str) or not system.is_timezone(name):

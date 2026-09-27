@@ -13,11 +13,41 @@ The project doesn't use version numbers, so sections are dated instead.
 ## 2026-09-27
 
 ### Added
+- A factory reset, on the Settings screen's Reset tab: after a
+  confirmation, it erases the settings, favorites, ignored items, trip
+  countdown date, and saved Wi-Fi networks, and starts first-time setup
+  again, as if new (e.g. before giving a kiosk to someone else).
+- The end of first-time setup offers to check for updates and restart
+  right away, so a new kiosk gets the latest version without waiting for
+  the weekly update.
+- Other Disney resorts: Disneyland Resort, Disneyland Paris, Tokyo Disney
+  Resort, and Shanghai Disney Resort, alongside Walt Disney World. The setup
+  wizard has a new "Which Disney resort?" step (defaulting to the local one
+  in Japan, France, or China, and Disneyland on the US West Coast), and the
+  dashboard's parks, skyline, wordmark, clock, time zone, and weather follow
+  the choice. Each park has its own landmark drawing (Sleeping Beauty
+  Castle, Pixar Pal-A-Round, the Paris castle and Tower of Terror, Mount
+  Prometheus, and the Enchanted Storybook Castle), from the same landmark
+  set as the kiosk's 3D-printed frames. Favorites and ignored items are kept
+  per resort: switching resorts hides the other resort's picks until you
+  switch back.
 - A browser tab icon: the dashboard's filled-in Cinderella Castle on a dark
   rounded square, with PNG versions for older browsers and for adding the
   page to a phone's home screen.
 - README: an Acknowledgments section, thanking Kayleigh Lund for UI/UX
   design feedback and testing.
+
+### Fixed
+- After an update, a browser could keep using stale copies of some of the
+  app's files alongside new ones, leaving the dashboard stuck on "Loading
+  wait times…". The server now has browsers check for newer files on every
+  load.
+
+### Changed
+- After first-time setup, holding ⚙ now opens a tabbed Settings screen
+  (Resort, Display, Wi-Fi, Location, Reset) instead of repeating every setup step,
+  so one thing can be changed on its own. Each change is saved as soon as
+  it's tapped.
 
 ## 2026-09-26
 

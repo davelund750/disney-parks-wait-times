@@ -321,6 +321,7 @@ body.setup {
 
 .setup-notice {
   position: fixed;
+  z-index: 10;
   left: 50%;
   bottom: 12vh;
   transform: translateX(-50%);
@@ -330,4 +331,78 @@ body.setup {
   border: 1px solid var(--yellow);
   color: var(--yellow);
   font-weight: 700;
+}
+
+/* A small landmark drawing on each resort choice. */
+.choice-landmark {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  height: 40px;
+}
+
+.choice-landmark .landmark {
+  height: 100%;
+  width: auto;
+  overflow: visible;
+}
+
+.choice.selected .choice-landmark .fill { fill: #fff; }
+.choice.selected .choice-landmark .cutout { fill: var(--panel); }
+
+.setup-notice.ok {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* ---- Settings screen tabs ---- */
+.settings-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 1vw;
+  padding: 1vh 3vw 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-tab {
+  flex: 1 1 0;
+  min-height: 48px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: clamp(15px, 2.2vw, 20px);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-tab.selected {
+  color: var(--text);
+  border-bottom-color: #f4c542;
+}
+
+/* ---- factory reset ---- */
+.setup-link.danger {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.setup-link.danger.strong {
+  background: var(--red);
+  color: #fff;
+}
+
+.reset-list {
+  margin: 0 0 1vh;
+  padding-left: 1.4em;
+}
+
+/* Buttons in the middle of a step (e.g. the last step's choices). */
+.setup-center .setup-actions {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.setup-center .setup-btn.primary {
+  margin-left: 0;
 }

@@ -121,6 +121,13 @@ class ServerTest(unittest.TestCase):
         with open(os.path.join(self.data_dir.name, "ignored.json")) as f:
             self.assertEqual(json.load(f), ["x", "y"])
 
+    def test_app_files_are_rechecked_but_saved_data_is_never_cached(self):
+        # So a browser never mixes an updated file with stale cached ones.
+        with urllib.request.urlopen(self.base + "/app.js") as res:
+            self.assertEqual(res.headers.get("Cache-Control"), "no-cache")
+        with urllib.request.urlopen(self.base + "/api/favorites") as res:
+            self.assertEqual(res.headers.get("Cache-Control"), "no-store")
+
     def test_the_app_itself_is_served(self):
         status, body = self.request("GET", "/")
         self.assertEqual(status, 200)
@@ -137,9 +144,19 @@ class ServerTest(unittest.TestCase):
             (200, {"units": "C", "clock": "24", "setupComplete": True}),
         )
         self.assertEqual(self.request("GET", "/api/settings")[1]["units"], "C")
+        self.assertEqual(self.request("PUT", "/api/settings", {"resort": "tdr"})[1]["resort"], "tdr")
+
+    def test_allowed_resorts_match_logic_js(self):
+        # The server's list must be kept in step with RESORTS in logic.js.
+        import re
+        with open(os.path.join(PROJECT_DIR, "logic.js")) as f:
+            ids = re.findall(r'^    id: "(\w+)",', f.read(), re.M)
+        server = importlib.import_module("server")
+        self.assertEqual(ids, list(server.SETTINGS_VALUES["resort"]))
 
     def test_bad_settings_are_rejected(self):
-        for body in [{"units": "K"}, {"clock": 24}, {"setupComplete": "yes"}, {"theme": "dark"}, ["units"]]:
+        for body in [{"units": "K"}, {"clock": 24}, {"setupComplete": "yes"}, {"theme": "dark"}, ["units"],
+                     {"resort": "epcot"}]:
             with self.subTest(body=body):
                 self.assertEqual(self.request("PUT", "/api/settings", body)[0], 400)
         self.assertEqual(self.request("GET", "/api/settings"), (200, {}))
@@ -154,7 +171,7 @@ class ServerTest(unittest.TestCase):
         status, networks = self.request("GET", "/api/system/networks")
         names = [n["ssid"] for n in networks]
         self.assertEqual(len(names), len(set(names)))  # one entry per network
-        self.assertEqual(names[0], "SwampNet")  # strongest first
+        self.assertEqual(names[0], "HomeWiFi")  # strongest first
 
     def test_countries_include_their_time_zones(self):
         status, countries = self.request("GET", "/api/system/countries")
@@ -162,14 +179,32 @@ class ServerTest(unittest.TestCase):
         self.assertEqual((japan["name"], japan["timezones"]), ("Japan", ["Asia/Tokyo"]))
 
     def test_connecting_to_wifi(self):
-        ok = self.request("PUT", "/api/system/wifi", {"ssid": "SwampNet", "password": "goodpassword"})
-        self.assertEqual(ok, (200, {"ok": True, "message": "Connected to SwampNet."}))
-        wrong = self.request("PUT", "/api/system/wifi", {"ssid": "SwampNet", "password": "wrong"})
+        ok = self.request("PUT", "/api/system/wifi", {"ssid": "HomeWiFi", "password": "goodpassword"})
+        self.assertEqual(ok, (200, {"ok": True, "message": "Connected to HomeWiFi."}))
+        wrong = self.request("PUT", "/api/system/wifi", {"ssid": "HomeWiFi", "password": "wrong"})
         self.assertFalse(wrong[1]["ok"])
         self.assertIn("password", wrong[1]["message"])
         for body in [{"password": "x"}, {"ssid": ""}, {"ssid": "x" * 33}, {"ssid": "a", "password": 5}]:
             with self.subTest(body=body):
                 self.assertEqual(self.request("PUT", "/api/system/wifi", body)[0], 400)
+
+    def test_checking_for_updates(self):
+        self.assertEqual(self.request("PUT", "/api/system/update", {}), (200, {"ok": True}))
+
+    def test_factory_reset_erases_settings_and_lists(self):
+        self.request("PUT", "/api/settings", {"setupComplete": True, "resort": "tdr"})
+        self.request("PUT", "/api/favorites", ["a", "b"])
+        self.request("PUT", "/api/ignored", ["c"])
+        self.assertEqual(self.request("PUT", "/api/system/reset", {}), (200, {"ok": True, "forgotWifi": 1}))
+        self.assertEqual(self.request("GET", "/api/settings"), (200, {}))  # setup runs again
+        # Its Wi-Fi is forgotten: offline, and the network is no longer "Saved".
+        self.assertFalse(self.request("GET", "/api/system/status")[1]["online"])
+        self.assertFalse(any(n["saved"] for n in self.request("GET", "/api/system/networks")[1]))
+        self.assertEqual(self.request("GET", "/api/favorites"), (200, []))
+        self.assertEqual(self.request("GET", "/api/ignored"), (200, []))
+        self.assertEqual(os.listdir(self.data_dir.name), [])
+        # Resetting again (nothing left to erase) is fine too.
+        self.assertEqual(self.request("PUT", "/api/system/reset", {}), (200, {"ok": True, "forgotWifi": 0}))
 
     def test_country_and_time_zone(self):
         self.assertEqual(self.request("PUT", "/api/system/country", {"code": "JP"}), (200, {"ok": True}))
@@ -197,6 +232,8 @@ class RemoteClientTest(ServerTest):
             ("PUT", "/api/system/country", {"code": "JP"}),
             ("PUT", "/api/system/timezone", {"timezone": "Asia/Tokyo"}),
             ("PUT", "/api/settings", {"units": "C"}),
+            ("PUT", "/api/system/reset", {}),
+            ("PUT", "/api/system/update", {}),
         ]:
             with self.subTest(path=path):
                 self.assertEqual(self.request(method, path, body)[0], 403)
@@ -211,6 +248,8 @@ class RemoteClientTest(ServerTest):
     test_countries_include_their_time_zones = None
     test_connecting_to_wifi = None
     test_country_and_time_zone = None
+    test_factory_reset_erases_settings_and_lists = None
+    test_checking_for_updates = None
 
 
 if __name__ == "__main__":

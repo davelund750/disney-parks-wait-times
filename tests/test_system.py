@@ -26,7 +26,7 @@ class FakeCommands(system.RealSystem):
 
 
 STATUS_OUTPUTS = {
-    "nmcli -t -e yes -f ACTIVE,SSID dev wifi": "no:Neighbor\nyes:Swamp\\:Net\n",
+    "nmcli -t -e yes -f ACTIVE,SSID dev wifi": "no:Neighbor\nyes:Home\\:WiFi\n",
     "nmcli networking connectivity": "full\n",
     "sudo -n raspi-config nonint get_wifi_country": "JP\n",
     "timedatectl show -p Timezone --value": "Asia/Tokyo\n",
@@ -36,7 +36,7 @@ STATUS_OUTPUTS = {
 class RealSystemTest(unittest.TestCase):
     def test_status_reads_each_command(self):
         status = FakeCommands(STATUS_OUTPUTS).status()
-        self.assertEqual(status, {"ssid": "Swamp:Net", "online": True, "country": "JP", "timezone": "Asia/Tokyo"})
+        self.assertEqual(status, {"ssid": "Home:WiFi", "online": True, "country": "JP", "timezone": "Asia/Tokyo"})
 
     def test_status_asks_all_at_once(self):
         # Four commands at 0.3s each: about 0.3s together, not 1.2s in a row.
@@ -50,10 +50,10 @@ class RealSystemTest(unittest.TestCase):
         self.assertNotIn(("nmcli", "networking", "connectivity", "check"), commands.calls)
 
     def test_networks_listed_once_each_strongest_first(self):
-        out = "Swamp\\:Net:64:WPA2\nSwamp\\:Net:100:WPA2\nCafe:40:\n:90:WPA2\n"
+        out = "Home\\:WiFi:64:WPA2\nHome\\:WiFi:100:WPA2\nCafe:40:\n:90:WPA2\n"
         networks = FakeCommands({"nmcli -t -e yes -f SSID,SIGNAL,SECURITY": out}).networks()
         self.assertEqual(networks, [
-            {"ssid": "Swamp:Net", "signal": 100, "secure": True, "saved": False},
+            {"ssid": "Home:WiFi", "signal": 100, "secure": True, "saved": False},
             {"ssid": "Cafe", "signal": 40, "secure": False, "saved": False},
         ])  # the nameless (hidden) network is left out
 
@@ -70,14 +70,14 @@ class RealSystemTest(unittest.TestCase):
                 self.assertEqual(system.connect_error(detail), expected)
 
     SAVED = {
-        "nmcli -t -e yes -f NAME,TYPE connection show": "netplan-wlan0-SwampNet:802-11-wireless\nWired:802-3-ethernet\n",
-        "nmcli -g 802-11-wireless.ssid connection show netplan-wlan0-SwampNet": "SwampNet\n",
+        "nmcli -t -e yes -f NAME,TYPE connection show": "netplan-wlan0-HomeWiFi:802-11-wireless\nWired:802-3-ethernet\n",
+        "nmcli -g 802-11-wireless.ssid connection show netplan-wlan0-HomeWiFi": "HomeWiFi\n",
     }
 
     def test_saved_networks_connect_with_their_saved_settings(self):
         commands = FakeCommands(self.SAVED)
-        self.assertEqual(commands.connect("SwampNet", "", False), {"ok": True, "message": "Connected to SwampNet."})
-        self.assertIn(("nmcli", "connection", "up", "netplan-wlan0-SwampNet"), commands.calls)
+        self.assertEqual(commands.connect("HomeWiFi", "", False), {"ok": True, "message": "Connected to HomeWiFi."})
+        self.assertIn(("nmcli", "connection", "up", "netplan-wlan0-HomeWiFi"), commands.calls)
         # It never rewrites the saved network with a fresh connect.
         self.assertFalse(any(c[:4] == ("nmcli", "dev", "wifi", "connect") for c in commands.calls))
 
@@ -92,8 +92,19 @@ class RealSystemTest(unittest.TestCase):
                     self.calls.append(args)
                     return subprocess.CompletedProcess(args, 4, stdout="", stderr="Error: Connection activation failed: Secrets were required")
                 return super()._run(*args, timeout=timeout)
-        result = SavedButFailing(self.SAVED).connect("SwampNet", "", False)
+        result = SavedButFailing(self.SAVED).connect("HomeWiFi", "", False)
         self.assertEqual((result["ok"], result.get("needsPassword")), (False, True))
+
+    def test_forgetting_wifi_deletes_only_wifi_connections(self):
+        commands = FakeCommands(self.SAVED)
+        self.assertEqual(commands.forget_wifi(), 1)
+        deletes = [c for c in commands.calls if c[:3] == ("nmcli", "connection", "delete")]
+        self.assertEqual(deletes, [("nmcli", "connection", "delete", "netplan-wlan0-HomeWiFi")])  # not "Wired"
+
+    def test_checking_for_updates_starts_the_update_service_without_waiting(self):
+        commands = FakeCommands({})
+        self.assertTrue(commands.start_update())
+        self.assertEqual(commands.calls, [("systemctl", "start", "--no-block", "wdw-update.service")])
 
     def test_country_code_must_look_like_one(self):
         self.assertEqual(FakeCommands({"sudo -n raspi-config": "JP\n"}).country(), "JP")

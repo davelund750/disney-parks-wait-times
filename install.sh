@@ -212,13 +212,15 @@ echo
 # $APP_USER without anyone logged in, so by default every change it asks for
 # needs a password. Grant exactly what it uses, nothing more:
 #  - a polkit rule: scan for and join Wi-Fi networks, set the time zone;
+#  - a polkit rule: start the update service (wdw-update.service, below), so
+#    setup can offer to check for updates right away;
 #  - a sudo rule: read and set the Wi-Fi country with raspi-config, and only
 #    with a two-letter code (the server checks that too).
 echo "==> Allowing the setup wizard to change Wi-Fi, country, and time zone"
 sudo tee /etc/polkit-1/rules.d/50-wdw-wait-times.rules >/dev/null <<EOF
 // Installed by wdw-wait-times/install.sh: lets the kiosk's setup wizard
-// (server.py, running as $APP_USER) manage Wi-Fi and set the time zone
-// without a password.
+// (server.py, running as $APP_USER) manage Wi-Fi, set the time zone, and
+// start the update service, without a password.
 polkit.addRule(function (action, subject) {
   var allowed = [
     "org.freedesktop.NetworkManager.wifi.scan",
@@ -228,6 +230,11 @@ polkit.addRule(function (action, subject) {
     "org.freedesktop.timedate1.set-timezone"
   ];
   if (subject.user === "$APP_USER" && allowed.indexOf(action.id) >= 0) {
+    return polkit.Result.YES;
+  }
+  // Starting the update service, and only that service.
+  if (subject.user === "$APP_USER" && action.id === "org.freedesktop.systemd1.manage-units" &&
+      action.lookup("unit") === "wdw-update.service" && action.lookup("verb") === "start") {
     return polkit.Result.YES;
   }
 });

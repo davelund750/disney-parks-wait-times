@@ -130,6 +130,25 @@ class RealSystem:
                     saved[ssid] = fields[0]
         return saved
 
+    def start_update(self):
+        """Starts the update service (update.sh): pull the latest version,
+        rerun the installer if anything changed, and reboot. Returns right
+        away; the reboot follows shortly."""
+        return self._run("systemctl", "start", "--no-block", "wdw-update.service").returncode == 0
+
+    def forget_wifi(self):
+        """Deletes every saved Wi-Fi network (not wired ones), e.g. for a
+        factory reset. The kiosk goes offline. Returns how many were deleted."""
+        deleted = 0
+        for ssid, name in self.saved_networks().items():
+            result = self._run("nmcli", "connection", "delete", name)
+            if result.returncode == 0:
+                deleted += 1
+            else:
+                detail = (result.stderr or result.stdout).strip()
+                print(f"Wi-Fi: couldn't forget {ssid!r} ({name!r}): {detail}", file=sys.stderr, flush=True)
+        return deleted
+
     def status(self):
         # These are slow on a Pi 3 (raspi-config especially), so ask them all
         # at once rather than one after another.
@@ -216,15 +235,15 @@ class FakeSystem:
 
     def __init__(self):
         self._offline = os.environ.get("WDW_FAKE_OFFLINE") == "1"
-        self._ssid = None if self._offline else "SwampNet"
+        self._ssid = None if self._offline else "HomeWiFi"
         self._country = "US"
         self._timezone = "America/New_York"
 
     def networks(self):
         time.sleep(1)  # a real scan takes a moment
         return _unique_networks([
-            {"ssid": "SwampNet", "signal": 100, "secure": True, "saved": True},
-            {"ssid": "SwampNet", "signal": 64, "secure": True, "saved": True},
+            {"ssid": "HomeWiFi", "signal": 100, "secure": True, "saved": not self._offline},
+            {"ssid": "HomeWiFi", "signal": 64, "secure": True, "saved": not self._offline},
             {"ssid": "Neighbor's Wi-Fi", "signal": 55, "secure": True, "saved": False},
             {"ssid": "Coffee Shop Guest", "signal": 40, "secure": False, "saved": False},
             {"ssid": "ワイファイ 5G", "signal": 30, "secure": True, "saved": False},
@@ -237,7 +256,7 @@ class FakeSystem:
 
     def connect(self, ssid, password, hidden):
         time.sleep(2)
-        if ssid == "SwampNet" and not password:  # saved, like on the real Pi
+        if ssid == "HomeWiFi" and not password and not self._offline:  # saved, like on the real Pi
             self._ssid = ssid
             return {"ok": True, "message": f"Connected to {ssid}."}
         if password.startswith("wrong"):
@@ -251,6 +270,16 @@ class FakeSystem:
     def set_country(self, code):
         self._country = code
         return True
+
+    def start_update(self):
+        print("Pretend system: would check for updates and restart now", flush=True)
+        return True
+
+    def forget_wifi(self):
+        forgotten = 0 if self._offline else 1  # "HomeWiFi" is saved unless offline
+        self._offline = True
+        self._ssid = None
+        return forgotten
 
     def timezone(self):
         return self._timezone

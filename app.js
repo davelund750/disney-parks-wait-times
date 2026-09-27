@@ -1,6 +1,6 @@
-// PARKS, ALL_PARKS, FAVORITES, the formatting helpers, and the slide/grid
-// logic live in logic.js (loaded first); this file wires them to the page.
-const TABS = [ALL_PARKS, FAVORITES, ...PARKS];
+// RESORTS, PARKS, ALL_PARKS, FAVORITES, the formatting helpers, and the
+// slide/grid logic live in logic.js, and the landmark drawings in
+// landmarks.js (both loaded first); this file wires them to the page.
 
 const REFRESH_MS = 5 * 60 * 1000; // themeparks.wiki data updates every few minutes
 const SLIDE_MS = 4500; // how long each carousel slide is shown
@@ -10,15 +10,17 @@ const API_BASE = "https://api.themeparks.wiki/v1";
 // being wiped at every boot.
 const listApi = (name) => `/api/${name}`;
 
-// The four parks sit a few miles apart in Orlando, close enough to share one
-// weather reading. Coordinates are roughly the center of Walt Disney World.
-const WEATHER_LAT = 28.3852;
-const WEATHER_LON = -81.5639;
+// A resort's parks are close enough together to share one weather reading,
+// taken at the resort's `weather` point (see RESORTS in logic.js).
 const WEATHER_REFRESH_MS = 15 * 60 * 1000;
-const weatherApi = (units) =>
-  `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}` +
-  `&current=temperature_2m,weather_code,is_day&temperature_unit=${units === "C" ? "celsius" : "fahrenheit"}` +
-  "&timezone=America%2FNew_York";
+const weatherApi = (units) => {
+  const { weather, timeZone } = current.resort;
+  return (
+    `https://api.open-meteo.com/v1/forecast?latitude=${weather.lat}&longitude=${weather.lon}` +
+    `&current=temperature_2m,weather_code,is_day&temperature_unit=${units === "C" ? "celsius" : "fahrenheit"}` +
+    `&timezone=${encodeURIComponent(timeZone)}`
+  );
+};
 
 // When no park data loads, try again sooner than the usual refresh; after
 // this many failures in a row, check whether the kiosk is offline.
@@ -45,6 +47,8 @@ const state = {
   tripDate: localStorage.getItem("tripDate") || null, // "YYYY-MM-DD", local calendar day
   settings: {}, // from the setup wizard: units ("F"/"C"), clock ("12"/"24")
   fetchFailures: 0, // park data loads failed in a row
+  listsLoaded: false, // favorites and ignored lists are in
+  startTabChosen: false, // the starting tab is picked once, after the first data
   retryTimer: null,
   favorites: new Set(), // ride entity ids
   ignored: new Set(), // ride entity ids hidden from the carousel
@@ -62,7 +66,9 @@ const els = {
   grid: document.getElementById("rideGrid"),
   carousel: document.getElementById("carousel"),
   carouselCard: document.getElementById("carouselCard"),
-  landmarks: document.querySelectorAll("#skyline .landmark-btn"),
+  skyline: document.getElementById("skyline"),
+  landmarks: [], // the skyline's buttons, built for the resort by buildSkyline()
+  wordmark: document.getElementById("carouselWordmark"),
   carouselName: document.getElementById("carouselName"),
   carouselWait: document.getElementById("carouselWait"),
   carouselFav: document.getElementById("carouselFav"),
@@ -87,7 +93,7 @@ const els = {
 };
 
 function parkById(parkId) {
-  return TABS.find((p) => p.id === parkId);
+  return [ALL_PARKS, FAVORITES, ...PARKS].find((p) => p.id === parkId);
 }
 
 function shuffle(arr) {
@@ -156,11 +162,23 @@ async function fetchAllParks() {
     return;
   }
   state.fetchFailures = 0;
+  if (chooseStartTab()) return; // it rebuilds and redraws everything itself
   buildSequence();
   renderGrid();
   renderCarouselSlide();
   startTimer();
   els.updated.textContent = `Updated ${new Date().toLocaleTimeString(DISPLAY_LOCALE, { hour12: displayPrefs.hour12 })}`;
+}
+
+// Once both the saved lists and the first park data are in: start on
+// Favorites if any are at this resort, otherwise stay on All Parks. (Only
+// the park data says which favorites are here.) Returns whether it switched.
+function chooseStartTab() {
+  if (state.startTabChosen || !state.listsLoaded || Object.keys(state.parkData).length === 0) return false;
+  state.startTabChosen = true;
+  if (favoritesHere(state) === 0) return false;
+  selectTab(FAVORITES.id);
+  return true;
 }
 
 // No park data at all: retry soon, and if it keeps failing because the
@@ -219,7 +237,7 @@ function renderGrid() {
   if (active.length === 0) {
     els.grid.innerHTML =
       state.activeParkId === FAVORITES.id
-        ? '<div class="error">No favorites yet. Tap ☆ on any ride to add it.</div>'
+        ? `<div class="error">${state.favorites.size ? "No favorites at this resort yet" : "No favorites yet"}. Tap ☆ on any ride to add it.</div>`
         : '<div class="error">No attraction data available.</div>';
   }
   renderGridSection("active", "Active", active);
@@ -363,7 +381,9 @@ function renderCarouselSlide() {
     els.carouselIgnore.hidden = true;
     if (state.activeParkId === FAVORITES.id && Object.keys(state.parkData).length) {
       els.carouselName.textContent = state.favorites.size
-        ? "None of your favorites are open right now"
+        ? favoritesHere(state)
+          ? "None of your favorites are open right now"
+          : "No favorites at this resort yet"
         : "No favorites yet";
     }
     return;
@@ -712,10 +732,27 @@ function tickClock() {
     hour: "2-digit",
     minute: "2-digit",
     hour12: displayPrefs.hour12,
-    timeZone: PARK_TIME_ZONE,
+    timeZone: parkTimeZone(),
   });
-  els.clock.textContent = `${time} ET`;
+  els.clock.textContent = `${time} ${current.resort.clockLabel}`;
   els.calIconDay.textContent = String(new Date().getDate());
+}
+
+// The resort's landmarks along the bottom, one button per park: tapping one
+// shows just that park, and tapping it again goes back to All Parks.
+function buildSkyline() {
+  els.skyline.innerHTML = "";
+  els.skyline.classList.toggle("few", PARKS.length < 4);
+  els.landmarks = PARKS.map((park) => {
+    const btn = document.createElement("button");
+    btn.className = "landmark-btn";
+    btn.dataset.park = park.short;
+    btn.setAttribute("aria-label", park.name);
+    btn.innerHTML = landmarkSvg(park.landmark);
+    btn.addEventListener("click", () => selectTab(state.activeParkId === park.id ? ALL_PARKS.id : park.id));
+    els.skyline.appendChild(btn);
+    return btn;
+  });
 }
 
 // The settings button opens the setup wizard, but only after being held, so
@@ -752,6 +789,8 @@ async function init() {
   }
   state.settings = settings || {};
   displayPrefs.hour12 = state.settings.clock !== "24";
+  setResort(state.settings.resort || "wdw");
+  els.wordmark.textContent = current.resort.name;
   initSettingsButton();
 
   renderTabs();
@@ -762,14 +801,7 @@ async function init() {
   els.carouselPrev.addEventListener("click", () => goTo(state.index - 1));
   els.carouselNext.addEventListener("click", () => goTo(state.index + 1));
   els.carouselPlay.addEventListener("click", () => setPlaying(!state.playing));
-  // Tapping a landmark shows just that park; tapping it again goes back to
-  // All Parks.
-  for (const landmark of els.landmarks) {
-    const park = PARKS.find((p) => p.short === landmark.dataset.park);
-    landmark.addEventListener("click", () =>
-      selectTab(state.activeParkId === park.id ? ALL_PARKS.id : park.id)
-    );
-  }
+  buildSkyline();
   els.carouselFav.addEventListener("click", () => toggleFavorite(els.carouselFav.dataset.rideId));
   els.carouselIgnore.addEventListener("click", () => toggleIgnored(els.carouselIgnore.dataset.rideId));
   els.carouselPlay.textContent = "⏸";
@@ -791,10 +823,12 @@ async function init() {
   renderTripCountdown();
   setInterval(renderTripCountdown, 1000);
 
+  selectTab(ALL_PARKS.id);
   Promise.all([loadSavedList("favorites"), loadSavedList("ignored")]).then(([favorites, ignored]) => {
     state.favorites = favorites;
     state.ignored = ignored;
-    selectTab(state.favorites.size ? FAVORITES.id : ALL_PARKS.id);
+    state.listsLoaded = true;
+    chooseStartTab();
   });
   fetchAllParks();
   setInterval(fetchAllParks, REFRESH_MS);
