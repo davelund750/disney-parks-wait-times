@@ -9,9 +9,10 @@
 # serves this folder over http://localhost:8000, (3) a kiosk autostart entry
 # that launches Chromium against it, (4) a tidy kiosk desktop (loading
 # wallpaper, no icons, hidden taskbar, no notifications, invisible pointer),
-# (5) a "Magic Starting..." boot splash, (6) a weekly self-update from GitHub
-# (Sundays 4 AM, then a reboot), (7) screen blanking disabled and desktop
-# autologin enabled so it comes up hands-free after a reboot.
+# (5) a "Magic Starting..." boot splash, (6) permissions for the on-screen
+# setup wizard (Wi-Fi, country, time zone), (7) a weekly self-update from
+# GitHub (Sundays 4 AM, then a reboot), (8) screen blanking disabled and
+# desktop autologin enabled so it comes up hands-free after a reboot.
 #
 # Nothing here stores your Wi-Fi password on disk — it's typed at the prompt
 # and passed straight to raspi-config.
@@ -204,6 +205,46 @@ if [ -d /etc/cloud ]; then
   sudo touch /etc/cloud/cloud-init.disabled
 fi
 sudo systemctl disable bluetooth.service 2>/dev/null || true
+echo
+
+# ---- setup wizard permissions ----
+# The on-screen setup wizard (setup.html) is served by server.py, running as
+# $APP_USER without anyone logged in, so by default every change it asks for
+# needs a password. Grant exactly what it uses, nothing more:
+#  - a polkit rule: scan for and join Wi-Fi networks, set the time zone;
+#  - a sudo rule: read and set the Wi-Fi country with raspi-config, and only
+#    with a two-letter code (the server checks that too).
+echo "==> Allowing the setup wizard to change Wi-Fi, country, and time zone"
+sudo tee /etc/polkit-1/rules.d/50-wdw-wait-times.rules >/dev/null <<EOF
+// Installed by wdw-wait-times/install.sh: lets the kiosk's setup wizard
+// (server.py, running as $APP_USER) manage Wi-Fi and set the time zone
+// without a password.
+polkit.addRule(function (action, subject) {
+  var allowed = [
+    "org.freedesktop.NetworkManager.wifi.scan",
+    "org.freedesktop.NetworkManager.network-control",
+    "org.freedesktop.NetworkManager.enable-disable-wifi",
+    "org.freedesktop.NetworkManager.settings.modify.system",
+    "org.freedesktop.timedate1.set-timezone"
+  ];
+  if (subject.user === "$APP_USER" && allowed.indexOf(action.id) >= 0) {
+    return polkit.Result.YES;
+  }
+});
+EOF
+SUDOERS_TMP="$(mktemp)"
+cat > "$SUDOERS_TMP" <<EOF
+# Installed by wdw-wait-times/install.sh: lets the kiosk's setup wizard read
+# and set the Wi-Fi country (two capital letters only, e.g. JP).
+$APP_USER ALL=(root) NOPASSWD: /usr/bin/raspi-config nonint get_wifi_country, /usr/bin/raspi-config nonint do_wifi_country [A-Z][A-Z]
+EOF
+# Only install it if sudo accepts it; a broken sudoers file can lock out sudo.
+if sudo visudo -cf "$SUDOERS_TMP" >/dev/null; then
+  sudo install -m 0440 -o root -g root "$SUDOERS_TMP" /etc/sudoers.d/wdw-wait-times
+else
+  echo "    Couldn't install the sudo rule; the wizard won't be able to set the country." >&2
+fi
+rm -f "$SUDOERS_TMP"
 echo
 
 # ---- weekly self-update ----

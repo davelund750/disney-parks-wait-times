@@ -125,9 +125,32 @@ Like favorites, the ignored list is saved on the device running
 `server.py`, in `~/.local/share/wdw-wait-times/ignored.json`, so each kiosk
 keeps its own list across reboots and updates.
 
+### Setup wizard
+
+The first time the kiosk starts, it runs a setup wizard on the touchscreen,
+with no keyboard, phone, or computer needed:
+
+1. **Country.** This also sets the Wi-Fi region (Wi-Fi channels differ by
+   country, so a Pi set to the wrong one may not see the router at all).
+2. **Time zone**, if the country has more than one.
+3. **Display:** °F or °C, and a 12- or 24-hour clock. Both default to what's
+   usual in the chosen country, e.g. °C and 24-hour for Japan.
+4. **Wi-Fi:** pick a network and type its password on the built-in keyboard.
+   Networks it already knows are kept.
+
+Park hours and show times are always in Walt Disney World time. If the kiosk
+later can't get online (a new router, a changed password), it goes straight
+to the Wi-Fi step by itself. To change any of these settings, press and hold
+the ⚙ button on the dashboard.
+
+The wizard only works on the kiosk itself: other devices on the network can
+view the dashboard, but can't change the kiosk's Wi-Fi, country, or time
+zone. The settings are saved in `~/.local/share/wdw-wait-times/settings.json`.
+
 ### Weather, park hours, and trip countdown
 
-- **Park Weather** (carousel, top-left): current temperature and conditions
+- **Park Weather** (carousel, top-left): current temperature (°F or °C, as
+  chosen in the [setup wizard](#setup-wizard)) and conditions
   for the Walt Disney World area. The four parks are close enough together to
   share one reading.
 - **Today's Hours** (carousel, top-right): the current park's hours for today.
@@ -142,19 +165,27 @@ keeps its own list across reboots and updates.
   is saved in the browser, so it's per device, and it clears itself once it
   has passed.
 
-All times are shown in park time (US Eastern), in 12-hour format.
+All times are shown in park time (US Eastern), in 12- or 24-hour format as
+chosen in the setup wizard.
 
 ## Requirements
 
 - **Any modern browser** to try it on a computer, plus Python 3 to run the
   local server.
 - **For the kiosk:** a Raspberry Pi running **Raspberry Pi OS with desktop**
-  (the current Wayland/labwc desktop), connected to the internet. It was
-  developed on a **Raspberry Pi 3 Model B+** with the official 800x480
-  touchscreen. On a Pi 3, expect about a minute and a half from power-on to
-  the app appearing; a **Raspberry Pi 4 (2 GB or more)** or **Pi 5** should
-  start considerably faster and is recommended. Any small screen works, touch or not,
-  though the boot splash image is sized for 800x480.
+  (the current Wayland/labwc desktop), connected to the internet. On a Pi 3,
+  expect about a minute and a half from power-on to the app appearing; a
+  **Raspberry Pi 4 (2 GB or more)** or **Pi 5** should start considerably
+  faster and is recommended.
+- **A screen:** any small screen works, touch or not, though the layout and
+  boot splash are designed for 800x480.
+
+It was developed on a **Raspberry Pi 3 Model B+** with a
+[Hosyond 7-inch IPS touchscreen](https://www.amazon.com/dp/B0D3QB7X4Z)
+(800x480, capacitive touch). It connects with a ribbon cable to the Pi's
+DSI display port rather than HDMI, and Raspberry Pi OS picks it up without
+extra drivers. If you use one on a Pi 5, check that you have a ribbon cable
+that fits: the Pi 5's display connector is smaller than the Pi 3's and 4's.
 
 ## Try it on your computer
 
@@ -164,7 +195,11 @@ cd wdw-wait-times
 python3 server.py
 ```
 
-Then open http://localhost:8000 in a browser. To see roughly how it will look
+Then open http://localhost:8000 in a browser. The first time, the setup
+wizard comes up. On a computer that isn't a Pi, the server only pretends to
+change Wi-Fi, country, and time zone (it prints "pretend system" at startup):
+any Wi-Fi password works except ones starting with "wrong", and
+`WDW_FAKE_OFFLINE=1 python3 server.py` simulates a kiosk with no internet. To see roughly how it will look
 on a small touchscreen, shrink the window to about 800x480 or 1024x600.
 
 The server doesn't send cache-control headers for the app's files, so after
@@ -181,8 +216,10 @@ run the installer.
 
 ### Set up without a keyboard
 
-Raspberry Pi OS has no on-screen keyboard, but none is needed. Everything up
-to the final reboot can be done from another computer:
+No keyboard is needed on the Pi. (Raspberry Pi OS does include an on-screen
+keyboard, Squeekboard, but it can't appear in front of the full-screen kiosk,
+so the app doesn't rely on it.) Everything up to the final reboot can be done
+from another computer:
 
 1. **Pre-configure the SD card in Raspberry Pi Imager.** In its settings
    screen, set the hostname, username and password, Wi-Fi network, and
@@ -203,6 +240,14 @@ to the final reboot can be done from another computer:
 
 If SSH isn't an option (for example, when troubleshooting a display or boot
 problem), plug in a USB keyboard and mouse temporarily.
+
+### Setting one up for someone else
+
+To give a kiosk to someone who can't do any of the above, install it
+yourself as described, then ship it. On first start at its new home, the
+[setup wizard](#setup-wizard) walks them through their country, time zone,
+and Wi-Fi on the touchscreen. It keeps the networks it already knows, so you
+can test it on your own Wi-Fi before shipping.
 
 ### What the installer does
 
@@ -245,6 +290,12 @@ you want it to set up Wi-Fi. In order, it:
 - **Trims boot work the kiosk doesn't need**: disables cloud-init (which only
   applies Raspberry Pi Imager's first-boot settings, and otherwise adds a few
   seconds to every boot) and Bluetooth.
+- **Lets the setup wizard change system settings.** The wizard is served by
+  `server.py`, which runs without anyone logged in, so by default the system
+  would ask for a password for every change. A polkit rule lets it scan for
+  and join Wi-Fi networks and set the time zone, and a sudo rule lets it read
+  and set the Wi-Fi country with `raspi-config` (two-letter codes only).
+  Nothing else is granted.
 - **Installs the weekly update timer** (see [Updates](#updates)), if the
   project folder is a git clone.
 - **Turns off screen blanking and turns on desktop auto-login**, so the kiosk
@@ -278,8 +329,9 @@ version, and it still reboots.
 ## Tests
 
 The tests cover the app's decision logic (which slides and rides to show,
-closed parks, favorites, time formatting), the favorites server, and the
-weekly update script. They need only Node.js and Python 3, with nothing to
+closed parks, favorites, time formatting), the server (saved lists,
+settings, and the setup wizard's endpoints, including that other devices
+can't use them), and the weekly update script. They need only Node.js and Python 3, with nothing to
 install:
 
 ```

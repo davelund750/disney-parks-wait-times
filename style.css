@@ -771,3 +771,24 @@ body.kiosk * {
   font-weight: 700;
   cursor: pointer;
 }
+
+/* ---- settings button (press and hold) ---- */
+.settings-button {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Fills up while held, so it's clear holding is doing something. */
+.settings-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(244, 197, 66, 0.35);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.settings-button.holding::after {
+  transform: scaleX(1);
+  transition: transform 1.5s linear;
+}

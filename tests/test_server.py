@@ -20,16 +20,25 @@ sys.path.insert(0, PROJECT_DIR)
 
 
 class ServerTest(unittest.TestCase):
+    remote_client = False  # RemoteClientTest pretends requests come from elsewhere
+
     def setUp(self):
         self.data_dir = tempfile.TemporaryDirectory()
         # server.py reads WDW_DATA_DIR when it's imported, so (re)import it
         # with this test's folder in place.
         os.environ["WDW_DATA_DIR"] = self.data_dir.name
+        # Never touch the real system, even on a Pi.
+        os.environ["WDW_FAKE_SYSTEM"] = "1"
+        os.environ.pop("WDW_FAKE_OFFLINE", None)
         server = importlib.reload(importlib.import_module("server"))
+        remote = self.remote_client
 
         class QuietHandler(server.Handler):
             def log_message(self, *args):
                 pass  # keep test output to results only
+
+            def is_local(self):
+                return not remote and super().is_local()
 
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), QuietHandler)
         self.base = f"http://127.0.0.1:{self.httpd.server_address[1]}"
@@ -40,6 +49,7 @@ class ServerTest(unittest.TestCase):
         self.httpd.server_close()
         self.data_dir.cleanup()
         del os.environ["WDW_DATA_DIR"]
+        del os.environ["WDW_FAKE_SYSTEM"]
 
     def request(self, method, path, body=None):
         """Returns (status, parsed JSON or raw bytes)."""
@@ -116,6 +126,91 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b"<title>WDW Wait Times</title>", body)
         self.assertEqual(self.request("GET", "/logic.js")[0], 200)
+
+    # ---- settings ----
+
+    def test_settings_start_empty_and_merge(self):
+        self.assertEqual(self.request("GET", "/api/settings"), (200, {}))
+        self.assertEqual(self.request("PUT", "/api/settings", {"units": "C"}), (200, {"units": "C"}))
+        self.assertEqual(
+            self.request("PUT", "/api/settings", {"clock": "24", "setupComplete": True}),
+            (200, {"units": "C", "clock": "24", "setupComplete": True}),
+        )
+        self.assertEqual(self.request("GET", "/api/settings")[1]["units"], "C")
+
+    def test_bad_settings_are_rejected(self):
+        for body in [{"units": "K"}, {"clock": 24}, {"setupComplete": "yes"}, {"theme": "dark"}, ["units"]]:
+            with self.subTest(body=body):
+                self.assertEqual(self.request("PUT", "/api/settings", body)[0], 400)
+        self.assertEqual(self.request("GET", "/api/settings"), (200, {}))
+
+    # ---- setup wizard (pretend system) ----
+
+    def test_status_and_networks(self):
+        status, body = self.request("GET", "/api/system/status")
+        self.assertEqual(status, 200)
+        self.assertTrue(body["fake"])
+        self.assertEqual(body["country"], "US")
+        status, networks = self.request("GET", "/api/system/networks")
+        names = [n["ssid"] for n in networks]
+        self.assertEqual(len(names), len(set(names)))  # one entry per network
+        self.assertEqual(names[0], "SwampNet")  # strongest first
+
+    def test_countries_include_their_time_zones(self):
+        status, countries = self.request("GET", "/api/system/countries")
+        japan = next(c for c in countries if c["code"] == "JP")
+        self.assertEqual((japan["name"], japan["timezones"]), ("Japan", ["Asia/Tokyo"]))
+
+    def test_connecting_to_wifi(self):
+        ok = self.request("PUT", "/api/system/wifi", {"ssid": "SwampNet", "password": "goodpassword"})
+        self.assertEqual(ok, (200, {"ok": True, "message": "Connected to SwampNet."}))
+        wrong = self.request("PUT", "/api/system/wifi", {"ssid": "SwampNet", "password": "wrong"})
+        self.assertFalse(wrong[1]["ok"])
+        self.assertIn("password", wrong[1]["message"])
+        for body in [{"password": "x"}, {"ssid": ""}, {"ssid": "x" * 33}, {"ssid": "a", "password": 5}]:
+            with self.subTest(body=body):
+                self.assertEqual(self.request("PUT", "/api/system/wifi", body)[0], 400)
+
+    def test_country_and_time_zone(self):
+        self.assertEqual(self.request("PUT", "/api/system/country", {"code": "JP"}), (200, {"ok": True}))
+        self.assertEqual(self.request("PUT", "/api/system/timezone", {"timezone": "Asia/Tokyo"}), (200, {"ok": True}))
+        status = self.request("GET", "/api/system/status")[1]
+        self.assertEqual((status["country"], status["timezone"]), ("JP", "Asia/Tokyo"))
+        # Only a two-letter code and a real time zone are passed on.
+        for body in [{"code": "jp"}, {"code": "JPN"}, {"code": "JP; reboot"}]:
+            with self.subTest(body=body):
+                self.assertEqual(self.request("PUT", "/api/system/country", body)[0], 400)
+        self.assertEqual(self.request("PUT", "/api/system/timezone", {"timezone": "Mars/Olympus"})[0], 400)
+
+
+class RemoteClientTest(ServerTest):
+    """Requests from elsewhere on the network: the dashboard and saved lists
+    still work, but nothing can change the Pi's settings."""
+
+    remote_client = True
+
+    def test_system_and_settings_changes_are_refused(self):
+        for method, path, body in [
+            ("GET", "/api/system/status", None),
+            ("GET", "/api/system/networks", None),
+            ("PUT", "/api/system/wifi", {"ssid": "x", "password": "12345678"}),
+            ("PUT", "/api/system/country", {"code": "JP"}),
+            ("PUT", "/api/system/timezone", {"timezone": "Asia/Tokyo"}),
+            ("PUT", "/api/settings", {"units": "C"}),
+        ]:
+            with self.subTest(path=path):
+                self.assertEqual(self.request(method, path, body)[0], 403)
+        # Reading settings and using favorites still works.
+        self.assertEqual(self.request("GET", "/api/settings")[0], 200)
+        self.assertEqual(self.request("PUT", "/api/favorites", ["a"]), (200, ["a"]))
+
+    # The inherited tests that change the system don't apply from elsewhere.
+    test_settings_start_empty_and_merge = None
+    test_bad_settings_are_rejected = None
+    test_status_and_networks = None
+    test_countries_include_their_time_zones = None
+    test_connecting_to_wifi = None
+    test_country_and_time_zone = None
 
 
 if __name__ == "__main__":

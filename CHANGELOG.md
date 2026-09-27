@@ -13,6 +13,12 @@ The project doesn't use version numbers, so sections are dated instead.
 ## 2026-09-26
 
 ### Added
+- Setup wizard: on first start, the kiosk walks through country (and Wi-Fi
+  region), time zone, °F/°C and 12/24-hour display, and Wi-Fi, all on the
+  touchscreen with a built-in keyboard. If it later can't get online, it
+  jumps to the Wi-Fi step on its own; press and hold the new ⚙ button to
+  change settings. Only the kiosk itself can make these changes. Kiosks
+  already set up will see the wizard once after updating.
 - Shows and meet-and-greets: parades, stage shows, fireworks, and character
   appearances now appear with their next time ("Show 2:00 PM" / "Next 2:00
   PM" in the grid, "Next show at 2:00 PM" in the carousel), then "No more
@@ -34,7 +40,16 @@ The project doesn't use version numbers, so sections are dated instead.
   update script, run by GitHub on every push along with a lint check of the
   shell scripts.
 
+### Fixed
+- The weather showed a sun on clear nights. It now shows a moon after dark
+  (and a cloud for a partly cloudy night).
+
 ### Changed
+- When park data can't be loaded, the dashboard retries every 30 seconds
+  instead of waiting for the next 5-minute refresh.
+- README: names the display the kiosk was developed with (a Hosyond 7-inch
+  DSI touchscreen), and corrects the claim that Raspberry Pi OS has no
+  on-screen keyboard.
 - Rides, shows, and exhibits with no wait time are no longer hidden or shown
   as just "Closed". They now read "Operating" when running (e.g. The Hall of
   Presidents), and "Opens *time*" when they open later in the day. The grid

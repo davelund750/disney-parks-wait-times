@@ -22,11 +22,17 @@ const PARK_TIME_ZONE = "America/New_York";
 // than the browser's locale: the Pi's Chromium runs as en-GB, which would
 // show 24-hour times.
 const DISPLAY_LOCALE = "en-US";
+// 12- or 24-hour times, from the setup wizard's choice (set by app.js).
+const displayPrefs = { hour12: true };
 
 // ---- rides ----
 
-// WMO weather codes -> emoji (https://open-meteo.com/en/docs, "WMO Weather interpretation codes")
-function weatherIcon(code) {
+// WMO weather codes -> emoji (https://open-meteo.com/en/docs, "WMO Weather
+// interpretation codes"). `isDay` is false after dark, when a clear sky is a
+// moon, not a sun.
+function weatherIcon(code, isDay = true) {
+  if (!isDay && code <= 1) return "\u{1F319}"; // clear or mostly clear night: moon
+  if (!isDay && code === 2) return "☁️"; // partly cloudy night
   if (code === 0) return "☀️"; // clear
   if (code <= 2) return "⛅"; // partly cloudy
   if (code === 3) return "☁️"; // overcast
@@ -36,7 +42,7 @@ function weatherIcon(code) {
   if (code >= 80 && code <= 82) return "\u{1F326}️"; // rain showers
   if (code >= 85 && code <= 86) return "\u{1F328}️"; // snow showers
   if (code >= 95) return "⛈️"; // thunderstorm
-  return "\u{1F324}️";
+  return isDay ? "\u{1F324}️" : "\u{1F319}";
 }
 
 // Every item (ride, show, or exhibit) is in exactly one display state; its
@@ -229,6 +235,7 @@ function formatTimeOfDay(date) {
   return date.toLocaleTimeString(DISPLAY_LOCALE, {
     hour: "numeric",
     minute: "2-digit",
+    hour12: displayPrefs.hour12,
     timeZone: PARK_TIME_ZONE,
   });
 }
@@ -464,6 +471,7 @@ if (typeof module !== "undefined") {
     FAVORITES,
     PARK_TIME_ZONE,
     DISPLAY_LOCALE,
+    displayPrefs,
     weatherIcon,
     rideState,
     rideBadgeClass,

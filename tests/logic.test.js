@@ -87,10 +87,15 @@ test("rides opening later today sort soonest first", () => {
   assert.deepEqual(rides.map((r) => r.id), ["ten", "quarter-to", "noon"]);
 });
 
-test("weather codes map to icons", () => {
+test("weather codes map to icons, with a moon instead of a sun at night", () => {
   assert.equal(L.weatherIcon(0), "☀️");
   assert.equal(L.weatherIcon(3), "☁️");
   assert.equal(L.weatherIcon(95), "⛈️");
+  // A clear night (what the parks reported at 10:30 PM) is a moon.
+  assert.equal(L.weatherIcon(0, false), "\u{1F319}");
+  assert.equal(L.weatherIcon(2, false), "☁️");
+  // Rain and storms look the same day or night.
+  assert.equal(L.weatherIcon(95, false), "⛈️");
 });
 
 // ---- shows ----
@@ -208,6 +213,17 @@ test("times are 12-hour park time, whatever the device's locale or time zone", (
     L.formatHoursRange(eastern("2026-09-25T09:00:00"), eastern("2026-09-25T21:00:00")),
     "9:00 AM – 9:00 PM"
   );
+});
+
+test("times follow the 12/24-hour setting", () => {
+  try {
+    L.displayPrefs.hour12 = false;
+    assert.equal(L.formatTimeOfDay(eastern("2026-09-25T23:00:00")), "23:00");
+    assert.equal(L.formatTimeOfDay(eastern("2026-09-25T09:05:00")), "09:05");
+  } finally {
+    L.displayPrefs.hour12 = true;
+  }
+  assert.equal(L.formatTimeOfDay(eastern("2026-09-25T23:00:00")), "11:00 PM");
 });
 
 test("next opening reads 'today at', 'tomorrow at', or a date", () => {

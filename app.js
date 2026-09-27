@@ -15,7 +15,21 @@ const listApi = (name) => `/api/${name}`;
 const WEATHER_LAT = 28.3852;
 const WEATHER_LON = -81.5639;
 const WEATHER_REFRESH_MS = 15 * 60 * 1000;
-const WEATHER_API = `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=America%2FNew_York`;
+const weatherApi = (units) =>
+  `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}` +
+  `&current=temperature_2m,weather_code,is_day&temperature_unit=${units === "C" ? "celsius" : "fahrenheit"}` +
+  "&timezone=America%2FNew_York";
+
+// When no park data loads, try again sooner than the usual refresh; after
+// this many failures in a row, check whether the kiosk is offline.
+const RETRY_MS = 30 * 1000;
+const FAILURES_BEFORE_WIFI_CHECK = 2;
+// How long the settings button has to be held.
+const SETTINGS_HOLD_MS = 1500;
+
+const kiosk = new URLSearchParams(location.search).has("kiosk");
+// The setup wizard, e.g. setupUrl("wifi") -> "setup.html?wifi&kiosk".
+const setupUrl = (mode) => "setup.html?" + [mode, kiosk && "kiosk"].filter(Boolean).join("&");
 
 const state = {
   view: localStorage.getItem("view") || "carousel",
@@ -29,6 +43,9 @@ const state = {
   playing: true,
   timer: null,
   tripDate: localStorage.getItem("tripDate") || null, // "YYYY-MM-DD", local calendar day
+  settings: {}, // from the setup wizard: units ("F"/"C"), clock ("12"/"24")
+  fetchFailures: 0, // park data loads failed in a row
+  retryTimer: null,
   favorites: new Set(), // ride entity ids
   ignored: new Set(), // ride entity ids hidden from the carousel
 };
@@ -58,6 +75,7 @@ const els = {
   carouselHours: document.getElementById("carouselHours"),
   tripCountdown: document.getElementById("tripCountdown"),
   tripDateButton: document.getElementById("tripDateButton"),
+  settingsButton: document.getElementById("settingsButton"),
   calIconDay: document.getElementById("calIconDay"),
   dateModalOverlay: document.getElementById("dateModalOverlay"),
   monthLabel: document.getElementById("monthLabel"),
@@ -133,18 +151,43 @@ async function fetchAllParks() {
       state.parkData[PARKS[i].id] = result.value;
     }
   });
+  if (results.every((result) => result.status === "rejected")) {
+    handleFetchFailure();
+    return;
+  }
+  state.fetchFailures = 0;
   buildSequence();
   renderGrid();
   renderCarouselSlide();
   startTimer();
-  els.updated.textContent = `Updated ${new Date().toLocaleTimeString(DISPLAY_LOCALE)}`;
+  els.updated.textContent = `Updated ${new Date().toLocaleTimeString(DISPLAY_LOCALE, { hour12: displayPrefs.hour12 })}`;
+}
+
+// No park data at all: retry soon, and if it keeps failing because the
+// kiosk has no internet, open the setup wizard's Wi-Fi step.
+async function handleFetchFailure() {
+  state.fetchFailures++;
+  if (!state.retryTimer) {
+    state.retryTimer = setTimeout(() => {
+      state.retryTimer = null;
+      fetchAllParks();
+    }, RETRY_MS);
+  }
+  if (state.fetchFailures < FAILURES_BEFORE_WIFI_CHECK) return;
+  try {
+    const res = await fetch("/api/system/status", { cache: "no-store" });
+    // Only the kiosk itself may ask; anywhere else, this just stays put.
+    if (res.ok && !(await res.json()).online) location.replace(setupUrl("wifi"));
+  } catch (err) {
+    // Can't tell; keep retrying.
+  }
 }
 
 // ---- weather ----
 
 async function fetchWeather() {
   try {
-    const res = await fetch(WEATHER_API);
+    const res = await fetch(weatherApi(state.settings.units));
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const temp = data.current?.temperature_2m;
@@ -152,7 +195,7 @@ async function fetchWeather() {
     if (temp === undefined || temp === null) throw new Error("no temperature in response");
     els.carouselWeather.innerHTML =
       `<span class="weather-label">Park Weather</span>` +
-      `<span class="weather-reading"><span class="weather-icon">${weatherIcon(code)}</span><span>${Math.round(temp)}°</span></span>`;
+      `<span class="weather-reading"><span class="weather-icon">${weatherIcon(code, data.current?.is_day !== 0)}</span><span>${Math.round(temp)}°</span></span>`;
     els.carouselWeather.hidden = false;
   } catch (err) {
     // Leave the last-known reading up rather than showing a stale error;
@@ -700,16 +743,48 @@ function tickClock() {
   const time = new Date().toLocaleTimeString(DISPLAY_LOCALE, {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: displayPrefs.hour12,
     timeZone: PARK_TIME_ZONE,
   });
   els.clock.textContent = `${time} ET`;
   els.calIconDay.textContent = String(new Date().getDate());
 }
 
-function init() {
+// The settings button opens the setup wizard, but only after being held, so
+// a stray tap (or a small child) doesn't land in settings.
+function initSettingsButton() {
+  let timer = null;
+  const cancel = () => {
+    clearTimeout(timer);
+    timer = null;
+    els.settingsButton.classList.remove("holding");
+  };
+  els.settingsButton.addEventListener("pointerdown", () => {
+    els.settingsButton.classList.add("holding");
+    timer = setTimeout(() => location.assign(setupUrl("settings")), SETTINGS_HOLD_MS);
+  });
+  for (const type of ["pointerup", "pointerleave", "pointercancel"]) {
+    els.settingsButton.addEventListener(type, cancel);
+  }
+}
+
+async function init() {
   // kiosk.sh opens the app with ?kiosk; hide the mouse pointer only there, so
   // it doesn't sit on the touchscreen but still works when testing on a Mac.
-  if (new URLSearchParams(location.search).has("kiosk")) document.body.classList.add("kiosk");
+  if (kiosk) document.body.classList.add("kiosk");
+
+  // Until setup is done, the wizard comes first. (With no settings API at
+  // all, e.g. a plain static server, skip it.)
+  const settings = await fetch("/api/settings", { cache: "no-store" })
+    .then((res) => (res.ok ? res.json() : null))
+    .catch(() => null);
+  if (settings && !settings.setupComplete) {
+    location.replace(setupUrl());
+    return;
+  }
+  state.settings = settings || {};
+  displayPrefs.hour12 = state.settings.clock !== "24";
+  initSettingsButton();
 
   renderTabs();
   const park = parkById(state.activeParkId);

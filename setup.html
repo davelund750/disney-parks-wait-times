@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<!-- Must contain "WDW Wait Times": kiosk.sh treats a tab with that title as
+     loaded, and would otherwise reload the dashboard partway through setup. -->
+<title>WDW Wait Times – Setup</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Grand+Hotel&display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="setup.css">
+</head>
+<body class="setup">
+  <header class="setup-header">
+    <div class="setup-wordmark">Walt Disney World</div>
+    <div class="setup-progress" id="progress"></div>
+    <button class="setup-cancel" id="cancel" hidden>Cancel</button>
+  </header>
+
+  <main class="setup-main" id="step"></main>
+
+  <footer class="setup-footer" id="footer">
+    <button class="setup-btn secondary" id="back">Back</button>
+    <button class="setup-btn primary" id="next">Next</button>
+  </footer>
+
+  <script src="logic.js"></script>
+  <script src="setup.js"></script>
+</body>
+</html>
