@@ -57,7 +57,12 @@ Toggle between them with the button in the top-right corner.
   jumps between parks instead of finishing one park before starting the next.
 - **Grid**: everything in the current selection at once, grouped (see
   [Grid groups](#grid-groups)). On All Parks and Favorites, each card is
-  tagged with its park (e.g. "MK").
+  tagged with its park (e.g. "MK"). Tap a card to see it full size, like a
+  carousel card, with its whole name (long names can be cut off in the
+  grid) and its Favorite and Ignore buttons; tap ✕ or outside it to close
+  it, or it closes by itself after a minute.
+
+![A grid card opened full size: Gran Fiesta Tour Starring The Three Caballeros, at a 5-minute wait](docs/screenshots/ride-details.png)
 
 Each item shows one of:
 
@@ -172,12 +177,15 @@ to the Wi-Fi step by itself. To change any of these settings later, press and
 hold the ⚙ button on the dashboard: it opens a Settings screen with tabs
 (Resort, Display, Wi-Fi, Location, About, Reset), so one thing can be
 changed without going through every step, and each change is saved as soon
-as it's tapped. **About** shows the installed version and can check for
-updates right away. **Reset** is a factory reset: after a confirmation, it erases the
-settings, all favorites and ignored items, the trip countdown date, and
-every saved Wi-Fi network, and the kiosk starts over with first-time setup
-as if new. It goes offline until it's set up again, so do it on the kiosk
-itself rather than over a remote connection.
+as it's tapped. **About** shows the installed version, can check for
+updates right away, and lists what changed in each release (from
+[CHANGELOG.md](CHANGELOG.md)). **Reset** is a factory reset: after a
+confirmation, it erases the settings, all favorites and ignored items, the
+trip countdown date, and every saved Wi-Fi network, and the kiosk starts
+over with first-time setup as if new. It goes offline until it's set up
+again, so do it on the kiosk itself rather than over a remote connection.
+
+![Settings' About tab: the installed version, the update button, and What's new](docs/screenshots/settings-about.png)
 
 The wizard only works on the kiosk itself: other devices on the network can
 view the dashboard, but can't change the kiosk's Wi-Fi, country, or time

@@ -11,6 +11,9 @@ folder, so updating the app never overwrites them):
                            clock ("12"/"24"), resort ("wdw", "dlr", ...);
                            PUT merges in the given keys
 
+  GET /api/changelog       the installed version's CHANGELOG.md, as a list
+                           of releases (for Settings' About tab)
+
 For the setup wizard (see system.py). These change the Pi itself, so they
 only answer requests from the Pi, never from elsewhere on the network:
 
@@ -101,6 +104,72 @@ def app_version():
 # Worked out once: an update reboots the kiosk, which restarts the server.
 VERSION = app_version()
 
+CHANGELOG_PATH = os.path.join(PROJECT_DIR, "CHANGELOG.md")
+
+
+def plain_text(markdown):
+    """An entry's text without its Markdown: [links](...), `code`, **bold**, *italics*."""
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", markdown)
+    text = re.sub(r"`([^`]*)`", r"\1", text)
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
+    return re.sub(r"\*([^*\s][^*]*)\*", r"\1", text)
+
+
+def parse_changelog(text):
+    """CHANGELOG.md's releases, newest first, for people to read on the kiosk.
+
+    Each is {"version": "1.2.0" or None (the dated beta sections before
+    1.0.0), "date": "YYYY-MM-DD", "label": extra heading text or None,
+    "notes": [paragraphs], "sections": [{"title": "Added", "items": [...]}]}.
+    "Unreleased" is left out: those changes aren't installed.
+    """
+    releases = []
+    for block in re.split(r"^## ", text, flags=re.M)[1:]:
+        heading, _, body = block.partition("\n")
+        heading = heading.strip()
+        match = re.fullmatch(r"(\d+\.\d+\.\d+) - (\d{4}-\d{2}-\d{2})", heading)
+        if match:
+            version, date, label = match[1], match[2], None
+        else:
+            match = re.fullmatch(r"(\d{4}-\d{2}-\d{2})(?::\s*(.+))?", heading)
+            if not match:
+                continue  # "Unreleased", or anything else that isn't a release
+            version, date, label = None, match[1], match[2]
+        release = {"version": version, "date": date, "label": label, "notes": [], "sections": []}
+        section = None
+        lines = []  # the entry or paragraph being read
+
+        def finish():
+            if lines:
+                entry = plain_text(" ".join(lines))
+                (section["items"] if section else release["notes"]).append(entry)
+                lines.clear()
+
+        for line in body.splitlines():
+            stripped = line.strip()
+            if line.startswith("### "):
+                finish()
+                section = {"title": line[4:].strip(), "items": []}
+                release["sections"].append(section)
+            elif line.startswith("- "):
+                finish()
+                lines.append(line[2:].strip())
+            elif not stripped:
+                finish()
+            else:
+                lines.append(stripped)  # a wrapped line of the same entry
+        finish()
+        releases.append(release)
+    return releases
+
+
+def read_changelog():
+    try:
+        with open(CHANGELOG_PATH, encoding="utf-8") as f:
+            return parse_changelog(f.read())
+    except OSError:
+        return []
+
 
 def read_list(filename):
     try:
@@ -154,6 +223,8 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json(200, read_list(LISTS[self.path]))
         elif self.path == SETTINGS_PATH:
             self.send_json(200, read_settings())
+        elif self.path == "/api/changelog":
+            self.send_json(200, read_changelog())
         elif self.path.startswith(SYSTEM_PREFIX):
             self.system_get(self.path[len(SYSTEM_PREFIX):])
         else:

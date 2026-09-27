@@ -87,6 +87,19 @@
     </div>
   </div>
 
+  <!-- A grid card at full size, where a long name isn't cut off: opened by
+       tapping the card, filled in by renderRideDetails() in app.js. -->
+  <div class="modal-overlay" id="rideDetailsOverlay" hidden>
+    <div class="carousel-card ride-details" role="dialog" aria-modal="true" aria-labelledby="rideDetailsName">
+      <button class="ride-details-close" id="rideDetailsClose" aria-label="Close">✕</button>
+      <div class="ride-details-park" id="rideDetailsPark"></div>
+      <div class="carousel-name" id="rideDetailsName"></div>
+      <button class="fav-star carousel-fav" id="rideDetailsFav"></button>
+      <div class="carousel-wait" id="rideDetailsWait"></div>
+      <button class="ignore-btn carousel-ignore" id="rideDetailsIgnore"></button>
+    </div>
+  </div>
+
   <script src="logic.js"></script>
   <script src="landmarks.js"></script>
   <script src="dragscroll.js"></script>

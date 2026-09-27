@@ -650,8 +650,12 @@ const locationTab = {
   },
 };
 
-// The version, and a way to update now instead of waiting for Sunday.
+// The version, a way to update now instead of waiting for Sunday, and what
+// changed in each release (the installed copy's CHANGELOG.md).
 const aboutTab = {
+  changelog: null, // releases from /api/changelog, newest first, once loaded
+  loading: null,
+  open: new Set(), // releases shown expanded, by releaseKey()
   render() {
     if (doneStep.updating) {
       doneStep.render(); // the "Checking for updates…" screen
@@ -667,8 +671,71 @@ const aboutTab = {
     } else {
       els.step.appendChild(el("p", "setup-text dim", "Checking for updates needs an internet connection."));
     }
+    renderWhatsNew();
   },
 };
+
+const releaseKey = (release) => release.version || `${release.date} ${release.label || ""}`;
+
+// "2026-09-27" -> "September 27, 2026"
+function formatReleaseDate(isoDate) {
+  return new Date(`${isoDate}T12:00:00Z`).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+// Each release as a row that opens to its changes; the newest starts open.
+function renderWhatsNew() {
+  els.step.appendChild(el("h2", "setup-title small whats-new-title", "What's new"));
+  if (!aboutTab.changelog) {
+    els.step.appendChild(el("p", "setup-text dim", "Loading…"));
+    aboutTab.loading ||= api("/api/changelog")
+      .catch(() => [])
+      .then((releases) => {
+        aboutTab.changelog = releases;
+        if (releases.length) aboutTab.open.add(releaseKey(releases[0]));
+        if (wizard.steps[wizard.index] === aboutTab) redraw();
+      });
+    return;
+  }
+  if (aboutTab.changelog.length === 0) {
+    els.step.appendChild(el("p", "setup-text dim", "No list of changes is available."));
+    return;
+  }
+  for (const release of aboutTab.changelog) {
+    const key = releaseKey(release);
+    const open = aboutTab.open.has(key);
+    const toggle = el("button", "release-toggle");
+    toggle.setAttribute("aria-expanded", String(open));
+    const title = release.version
+      ? `Version ${release.version}`
+      : `Beta${release.label ? ` (${release.label})` : ""}`;
+    toggle.appendChild(el("span", "release-name", `${open ? "▾" : "▸"} ${title}`));
+    if (release.version && release.version === wizard.status.version) {
+      toggle.appendChild(el("span", "release-installed", "Installed"));
+    }
+    toggle.appendChild(el("span", "release-date", formatReleaseDate(release.date)));
+    toggle.addEventListener("click", () => {
+      if (open) aboutTab.open.delete(key);
+      else aboutTab.open.add(key);
+      redraw();
+    });
+    els.step.appendChild(toggle);
+    if (!open) continue;
+    const details = el("div", "release-details");
+    for (const note of release.notes) details.appendChild(el("p", "setup-text", note));
+    for (const section of release.sections) {
+      details.appendChild(el("h3", "release-section", section.title));
+      const list = el("ul", "release-items");
+      for (const item of section.items) list.appendChild(el("li", "", item));
+      details.appendChild(list);
+    }
+    els.step.appendChild(details);
+  }
+}
 
 // Factory reset: erases everything the user has set up, saved Wi-Fi networks
 // included, so the kiosk starts over with first-time setup as if new (e.g.

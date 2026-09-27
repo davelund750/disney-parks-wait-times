@@ -52,6 +52,8 @@ const state = {
   retryTimer: null,
   favorites: new Set(), // ride entity ids
   ignored: new Set(), // ride entity ids hidden from the carousel
+  detailsRideId: null, // the grid card shown full size, if any
+  detailsTimer: null,
 };
 
 // Month currently shown in the date-picker modal (not persisted).
@@ -90,6 +92,13 @@ const els = {
   dateGrid: document.getElementById("dateGrid"),
   clearTripDateBtn: document.getElementById("clearTripDate"),
   closeDateModalBtn: document.getElementById("closeDateModal"),
+  detailsOverlay: document.getElementById("rideDetailsOverlay"),
+  detailsClose: document.getElementById("rideDetailsClose"),
+  detailsPark: document.getElementById("rideDetailsPark"),
+  detailsName: document.getElementById("rideDetailsName"),
+  detailsFav: document.getElementById("rideDetailsFav"),
+  detailsWait: document.getElementById("rideDetailsWait"),
+  detailsIgnore: document.getElementById("rideDetailsIgnore"),
 };
 
 function parkById(parkId) {
@@ -243,6 +252,8 @@ function renderGrid() {
   renderGridSection("active", "Active", active);
   // Ignored items get their own section at the bottom, to bring them back.
   renderGridSection("inactive", "Inactive", inactive);
+  // An open card follows the same changes (new waits, favorite, ignore).
+  renderRideDetails();
 }
 
 // One section of the grid: a heading, then each group as a collapsible
@@ -336,7 +347,60 @@ function rideCard(ride, isIgnored) {
   card.appendChild(wait);
   card.appendChild(favoriteButton(ride.id));
   card.appendChild(ignoreButton(ride.id));
+  // Tapping the card (not one of its buttons) shows it full size.
+  card.addEventListener("click", (e) => {
+    if (!e.target.closest("button")) openRideDetails(ride.id);
+  });
   return card;
+}
+
+// ---- ride details: a grid card at full size ----
+
+// The grid's cards are small, so a long name can be cut off. Tapping one
+// shows it like a carousel card, until it's closed, or left alone this long
+// (so a kiosk isn't left covered).
+const RIDE_DETAILS_TIMEOUT_MS = 60 * 1000;
+
+// A ride and its park, from the latest park data.
+function findRide(rideId) {
+  for (const park of PARKS) {
+    const ride = state.parkData[park.id]?.rides.find((r) => r.id === rideId);
+    if (ride) return { ride, park };
+  }
+  return null;
+}
+
+function openRideDetails(rideId) {
+  state.detailsRideId = rideId;
+  els.detailsOverlay.hidden = false;
+  renderRideDetails();
+  restartRideDetailsTimer();
+}
+
+function closeRideDetails() {
+  state.detailsRideId = null;
+  els.detailsOverlay.hidden = true;
+  clearTimeout(state.detailsTimer);
+}
+
+function restartRideDetailsTimer() {
+  clearTimeout(state.detailsTimer);
+  state.detailsTimer = setTimeout(closeRideDetails, RIDE_DETAILS_TIMEOUT_MS);
+}
+
+function renderRideDetails() {
+  if (!state.detailsRideId) return;
+  const found = findRide(state.detailsRideId);
+  if (!found) {
+    closeRideDetails();
+    return;
+  }
+  const { ride, park } = found;
+  els.detailsPark.textContent = park.name;
+  els.detailsName.textContent = ride.name;
+  renderFavoriteButton(els.detailsFav, ride.id, " Favorite");
+  renderWait(els.detailsWait, ride);
+  els.detailsIgnore.textContent = state.ignored.has(ride.id) ? "+ Stop ignoring" : "− Ignore";
 }
 
 // ---- carousel view ----
@@ -407,22 +471,28 @@ function renderCarouselSlide() {
     els.carouselIgnore.dataset.rideId = slide.id;
     els.carouselIgnore.hidden = false;
     els.carouselName.textContent = slide.name;
-    const later = carouselLaterText(slide);
-    if (later) {
-      // "Opens at 10:00 AM" / "Next show at 2:00 PM": too wide for the giant
-      // wait-number style.
-      els.carouselWait.className = "carousel-wait opens";
-      els.carouselWait.innerHTML = `<span class="value">${later}</span>`;
-    } else {
-      const { value, unit } = rideLabel(slide);
-      // Status words ("Operating", "Down") are too wide for the giant number size.
-      els.carouselWait.className = "carousel-wait " + rideBadgeClass(slide) + (unit ? "" : " status-text");
-      els.carouselWait.innerHTML = `<span class="value">${value}</span><span class="unit">${unit}</span>`;
-    }
+    renderWait(els.carouselWait, slide);
   }
 
   els.carouselPosition.textContent = `${state.index + 1} / ${state.sequence.length}`;
   renderHoursFor(slide.parkId);
+}
+
+// A ride's wait or status in the carousel's large style (the carousel card,
+// and a grid card shown full size).
+function renderWait(el, ride) {
+  const later = carouselLaterText(ride);
+  if (later) {
+    // "Opens at 10:00 AM" / "Next show at 2:00 PM": too wide for the giant
+    // wait-number style.
+    el.className = "carousel-wait opens";
+    el.innerHTML = `<span class="value">${later}</span>`;
+  } else {
+    const { value, unit } = rideLabel(ride);
+    // Status words ("Operating", "Down") are too wide for the giant number size.
+    el.className = "carousel-wait " + rideBadgeClass(ride) + (unit ? "" : " status-text");
+    el.innerHTML = `<span class="value">${value}</span><span class="unit">${unit}</span>`;
+  }
 }
 
 function stopTimer() {
@@ -594,6 +664,7 @@ function applyView() {
 }
 
 function setView(view) {
+  closeRideDetails();
   state.view = view;
   localStorage.setItem("view", view);
   applyView();
@@ -822,6 +893,17 @@ async function init() {
   });
   renderTripCountdown();
   setInterval(renderTripCountdown, 1000);
+
+  els.detailsClose.addEventListener("click", closeRideDetails);
+  els.detailsFav.addEventListener("click", () => toggleFavorite(state.detailsRideId));
+  els.detailsIgnore.addEventListener("click", () => toggleIgnored(state.detailsRideId));
+  els.detailsOverlay.addEventListener("click", (e) => {
+    if (e.target === els.detailsOverlay) closeRideDetails();
+    else restartRideDetailsTimer(); // still in use
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeRideDetails();
+  });
 
   selectTab(ALL_PARKS.id);
   Promise.all([loadSavedList("favorites"), loadSavedList("ignored")]).then(([favorites, ignored]) => {

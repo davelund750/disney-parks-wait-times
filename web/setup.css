@@ -392,6 +392,72 @@ body.setup {
   color: #fff;
 }
 
+/* About tab: What's new, one row per release. */
+.whats-new-title {
+  margin-top: 3vh;
+}
+
+.release-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2vw;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 1vw;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: clamp(15px, 2.2vw, 20px);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.release-name {
+  flex: 1 1 auto;
+}
+
+.release-installed {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #f4c542;
+  color: #000;
+  font-size: clamp(11px, 1.5vw, 13px);
+  font-weight: 800;
+}
+
+.release-date {
+  color: var(--text-dim);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.release-details {
+  padding: 1.5vh 1vw 1vh;
+  border-bottom: 1px solid var(--border);
+}
+
+.release-section {
+  margin: 1vh 0 0.5vh;
+  color: var(--text-dim);
+  font-size: clamp(12px, 1.6vw, 15px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.release-items {
+  margin: 0 0 1vh;
+  padding-left: 1.3em;
+  font-size: clamp(14px, 2vw, 18px);
+  line-height: 1.35;
+}
+
+.release-items li {
+  margin-bottom: 0.8vh;
+}
+
 .reset-list {
   margin: 0 0 1vh;
   padding-left: 1.4em;

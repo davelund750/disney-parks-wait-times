@@ -246,6 +246,63 @@ class VersionTest(unittest.TestCase):
                 self.assertEqual(server.describe_version(described), shown)
 
 
+class ChangelogTest(unittest.TestCase):
+    SAMPLE = """# Changelog
+
+Intro text for developers.
+
+## Unreleased
+
+### Added
+- Not installed yet.
+
+## 1.1.0 - 2026-10-04
+
+### Added
+- A [linked](README.md#x) thing with `code`, **bold**, and *italics*,
+  wrapped onto a second line.
+- Another thing.
+
+### Fixed
+- A fix.
+
+## 2026-09-25: first release
+
+The start.
+
+### Dashboard
+- Wait times.
+"""
+
+    def test_releases_newest_first_without_unreleased(self):
+        server = importlib.import_module("server")
+        newer, older = server.parse_changelog(self.SAMPLE)
+        self.assertEqual((newer["version"], newer["date"], newer["label"]), ("1.1.0", "2026-10-04", None))
+        self.assertEqual(newer["sections"], [
+            {"title": "Added", "items": [
+                "A linked thing with code, bold, and italics, wrapped onto a second line.",
+                "Another thing.",
+            ]},
+            {"title": "Fixed", "items": ["A fix."]},
+        ])
+        self.assertEqual((older["version"], older["date"], older["label"]), (None, "2026-09-25", "first release"))
+        self.assertEqual(older["notes"], ["The start."])
+        self.assertEqual(older["sections"], [{"title": "Dashboard", "items": ["Wait times."]}])
+
+    def test_the_real_changelog_reads(self):
+        server = importlib.import_module("server")
+        releases = server.read_changelog()
+        self.assertTrue(releases)
+        for release in releases:
+            with self.subTest(release=release["version"] or release["date"]):
+                self.assertTrue(release["sections"])
+                for section in release["sections"]:
+                    self.assertTrue(section["items"])
+                    for item in section["items"]:
+                        self.assertNotIn("`", item)
+                        self.assertNotRegex(item, r"\]\(")
+
+
 class RemoteClientTest(ServerTest):
     """Requests from elsewhere on the network: the dashboard and saved lists
     still work, but nothing can change the Pi's settings."""
@@ -265,8 +322,9 @@ class RemoteClientTest(ServerTest):
         ]:
             with self.subTest(path=path):
                 self.assertEqual(self.request(method, path, body)[0], 403)
-        # Reading settings and using favorites still works.
+        # Reading settings and the changelog, and using favorites, still work.
         self.assertEqual(self.request("GET", "/api/settings")[0], 200)
+        self.assertEqual(self.request("GET", "/api/changelog")[0], 200)
         self.assertEqual(self.request("PUT", "/api/favorites", ["a"]), (200, ["a"]))
 
     # The inherited tests that change the system don't apply from elsewhere.

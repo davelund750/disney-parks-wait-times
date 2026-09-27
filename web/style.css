@@ -745,6 +745,60 @@ body.kiosk * {
   font-weight: 700;
 }
 
+/* ---- ride details: a grid card at full size ---- */
+.ride-details {
+  position: relative;
+  width: min(90vw, 680px);
+  max-width: none;
+  max-height: 92vh;
+  overflow-y: auto;
+  gap: 1.8vh;
+  padding: 4vh 7vw;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.ride-details-park {
+  color: var(--text-dim);
+  font-size: clamp(12px, 1.8vw, 16px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* The whole name, however long: the reason to open it. */
+.ride-details .carousel-name {
+  display: block;
+  max-height: none;
+  overflow: visible;
+}
+
+/* A little smaller than the carousel's, to fit the name, buttons, and wait
+   on the kiosk's short screen. */
+.ride-details .carousel-wait:not(.status-text):not(.opens) .value {
+  font-size: clamp(56px, 12vw, 120px);
+}
+
+.ride-details .carousel-wait.status-text .value {
+  font-size: clamp(30px, 7vw, 72px);
+}
+
+.ride-details-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
 /* ---- grid groups (accordion) ---- */
 .grid-group {
   grid-column: 1 / -1;

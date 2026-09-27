@@ -12,7 +12,16 @@ kiosks installed whatever was on `main` each week.
 
 ## Unreleased
 
-No current unreleased changes.
+### Added
+- Tap a card in the grid to see it full size, like a carousel card: the
+  whole name (long names can be cut off on the small cards), its park, the
+  wait or status, and its Favorite and Ignore buttons. Tap ✕ or anywhere
+  outside it to close it; it also closes by itself after a minute, so a
+  kiosk isn't left covered.
+- What's new, in Settings' About tab: each release's changes from this
+  changelog, with its date, the installed version marked, and the newest
+  open. Tap a release to open or close it.
+- README screenshots of both.
 
 ## 1.0.0 - 2026-09-27
 
