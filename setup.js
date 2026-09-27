@@ -576,6 +576,8 @@ async function start() {
       els.cancel.addEventListener("click", () => location.replace(dashboardUrl));
     }
   }
+  // Swipes on the kiosk's touchscreen arrive as mouse drags (see dragscroll.js).
+  enableDragScroll(els.step);
   els.next.addEventListener("click", goNext);
   els.back.addEventListener("click", goBack);
   showStep(0);

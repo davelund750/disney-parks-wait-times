@@ -321,38 +321,6 @@ function rideCard(ride, isIgnored) {
   return card;
 }
 
-// Touch already scrolls the grid natively; this just adds the same
-// click-and-drag-anywhere scrolling to mouse/trackpad input for testing off
-// the kiosk's touchscreen.
-function initGridDragScroll() {
-  let dragging = false;
-  let startY = 0;
-  let startScrollTop = 0;
-
-  els.grid.addEventListener("pointerdown", (e) => {
-    // Capturing the pointer would swallow clicks on a card's buttons.
-    if (e.pointerType !== "mouse" || e.target.closest("button")) return;
-    dragging = true;
-    startY = e.clientY;
-    startScrollTop = els.grid.scrollTop;
-    els.grid.classList.add("dragging");
-    els.grid.setPointerCapture(e.pointerId);
-  });
-
-  els.grid.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-    els.grid.scrollTop = startScrollTop - (e.clientY - startY);
-  });
-
-  const stopDrag = () => {
-    dragging = false;
-    els.grid.classList.remove("dragging");
-  };
-  els.grid.addEventListener("pointerup", stopDrag);
-  els.grid.addEventListener("pointercancel", stopDrag);
-  els.grid.addEventListener("pointerleave", stopDrag);
-}
-
 // ---- carousel view ----
 
 function renderHoursFor(parkId) {
@@ -810,7 +778,7 @@ async function init() {
   applyView();
   tickClock();
   setInterval(tickClock, 1000 * 15);
-  initGridDragScroll();
+  enableDragScroll(els.grid);
 
   els.tripDateButton.addEventListener("click", openDateModal);
   els.monthPrev.addEventListener("click", () => shiftCalendarMonth(-1));

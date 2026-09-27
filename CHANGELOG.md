@@ -41,6 +41,10 @@ The project doesn't use version numbers, so sections are dated instead.
   shell scripts.
 
 ### Fixed
+- Swiping didn't scroll the setup wizard on the kiosk's touchscreen, so long
+  lists (like US time zones) couldn't be scrolled. The touchscreen sends
+  swipes as mouse drags, which the wizard now scrolls with, like the
+  dashboard grid; a swipe that starts on a button no longer presses it.
 - The weather showed a sun on clear nights. It now shows a moon after dark
   (and a cloud for a partly cloudy night).
 
