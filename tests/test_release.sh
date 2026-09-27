@@ -80,9 +80,9 @@ fi
 check "commits it as \"Release 1.0.0\"" [ "$(git -C "$DEV" log -1 --format=%s)" = "Release 1.0.0" ]
 if grep -q "^## 1.0.0 - $(date +%F)$" "$DEV/CHANGELOG.md" \
   && [ "$(grep -n '^## ' "$DEV/CHANGELOG.md" | head -n 2 | cut -d: -f2 | tr '\n' '|')" = "## Unreleased|## 1.0.0 - $(date +%F)|" ]; then
-  pass "dates the changelog section, under a new, empty Unreleased"
+  pass "dates the changelog section, under a new Unreleased"
 else
-  fail "dates the changelog section, under a new, empty Unreleased ($(grep '^## ' "$DEV/CHANGELOG.md" | tr '\n' '|'))"
+  fail "dates the changelog section, under a new Unreleased ($(grep '^## ' "$DEV/CHANGELOG.md" | tr '\n' '|'))"
 fi
 if git -C "$DEV" tag -l --format='%(contents)' v1.0.0 | grep -q "A new thing."; then
   pass "puts the changelog entries in the tag's notes"
@@ -90,8 +90,11 @@ else
   fail "puts the changelog entries in the tag's notes"
 fi
 
+check "which says there are no unreleased changes" grep -qx "No current unreleased changes." "$DEV/CHANGELOG.md"
+
 echo "After a release:"
-expect_refused "an empty Unreleased section" "is empty" 1.0.1
+expect_refused "an Unreleased section with only that line" "is empty" 1.0.1
+# A fix added under the line, which is left in by mistake.
 python3 - "$DEV/CHANGELOG.md" <<'EOF'
 import sys
 p = sys.argv[1]
@@ -104,6 +107,16 @@ expect_refused "the same version again" "already exists" 1.0.0
 expect_refused "an older version" "isn't newer" 0.9.0
 if release 1.0.10; then pass "takes 1.0.10 (newer than 1.0.0 as a number)"; else fail "takes 1.0.10 ($(tr '\n' '|' < "$OUT"))"; fi
 expect_refused "1.0.9 after 1.0.10" "isn't newer" 1.0.9
+if git -C "$DEV" tag -l --format='%(contents)' v1.0.10 | grep -q "No current unreleased"; then
+  fail "leaves the no-changes line out of the release notes"
+else
+  pass "leaves the no-changes line out of the release notes"
+fi
+if [ "$(grep -c "No current unreleased changes." "$DEV/CHANGELOG.md")" = 1 ]; then
+  pass "and keeps just one of it, under Unreleased"
+else
+  fail "and keeps just one of it, under Unreleased"
+fi
 
 echo
 if [ "$failures" -eq 0 ]; then

@@ -11,7 +11,8 @@
 # First it checks: the version is new, you're on main with nothing
 # uncommitted, main matches GitHub, GitHub's tests passed on it, and the
 # changelog's "Unreleased" section has entries. Then it renames that section
-# to the version and date (starting a new, empty "Unreleased"), commits that
+# to the version and date (starting a new "Unreleased" that says there are
+# no unreleased changes, until the next one is added), commits that
 # as "Release X.Y.Z", tags it vX.Y.Z, pushes both, and creates a GitHub
 # Release with the same notes.
 #
@@ -58,22 +59,25 @@ if [ -z "$offline" ]; then
   esac
 fi
 
-# The changelog: "## Unreleased" becomes "## X.Y.Z - date", under a new,
-# empty "## Unreleased". Its entries are the release notes.
+# The changelog: "## Unreleased" becomes "## X.Y.Z - date", under a new
+# "## Unreleased" holding only the placeholder line. Its entries are the
+# release notes.
 notes="$(mktemp)"
 trap 'rm -f "$notes"' EXIT
 python3 - "$version" "$(date +%F)" "$notes" <<'EOF' || exit 1
 import re, sys
 version, date, notes_path = sys.argv[1:]
+# What "Unreleased" says when nothing is waiting; replace it with entries.
+PLACEHOLDER = "No current unreleased changes."
 text = open("CHANGELOG.md").read()
 match = re.search(r"^## Unreleased\n(.*?)(?=^## |\Z)", text, re.M | re.S)
 if not match:
     sys.exit('Not released: CHANGELOG.md has no "## Unreleased" section.')
-notes = match.group(1).strip()
+notes = match.group(1).replace(PLACEHOLDER, "").strip()
 if not notes:
     sys.exit('Not released: the changelog\'s "Unreleased" section is empty; add what changed.')
 open(notes_path, "w").write(notes + "\n")
-released = f"## Unreleased\n\n## {version} - {date}\n\n{notes}\n\n"
+released = f"## Unreleased\n\n{PLACEHOLDER}\n\n## {version} - {date}\n\n{notes}\n\n"
 open("CHANGELOG.md", "w").write(text[:match.start()] + released + text[match.end():])
 EOF
 

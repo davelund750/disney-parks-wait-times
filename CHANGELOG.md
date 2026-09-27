@@ -12,6 +12,8 @@ kiosks installed whatever was on `main` each week.
 
 ## Unreleased
 
+No current unreleased changes.
+
 ## 1.0.0 - 2026-09-27
 
 ### Added

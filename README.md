@@ -381,7 +381,8 @@ change that needs a fresh install or new hardware, the second for new
 features, and the third for fixes only.
 
 - **Publish a release:** add what changed under "Unreleased" in
-  [CHANGELOG.md](CHANGELOG.md), push to `main`, wait for GitHub's tests to
+  [CHANGELOG.md](CHANGELOG.md) (in place of "No current unreleased
+  changes."), push to `main`, wait for GitHub's tests to
   pass, then run `make release VERSION=1.2.0`. It checks all of that, dates
   the changelog section, tags the release, pushes it, and creates a
   [GitHub Release](https://github.com/davelund750/wdw-wait-times/releases)
