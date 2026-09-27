@@ -12,6 +12,10 @@ kiosks installed whatever was on `main` each week.
 
 ## Unreleased
 
+No current unreleased changes.
+
+## 1.2.0 - 2026-09-27
+
 ### Changed
 - Renamed from WDW Wait Times to Disney Parks Wait Times, now that it
   covers every Disney resort: on the dashboard, setup and Settings screens,
