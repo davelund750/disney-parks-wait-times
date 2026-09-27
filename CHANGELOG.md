@@ -12,6 +12,8 @@ kiosks installed whatever was on `main` each week.
 
 ## Unreleased
 
+## 1.0.0 - 2026-09-27
+
 ### Added
 - Version numbers and releases. Kiosks now install only published releases
   (like `v1.0.0`) instead of whatever is on `main`, so unfinished work there
