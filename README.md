@@ -225,6 +225,7 @@ that fits: the Pi 5's display connector is smaller than the Pi 3's and 4's.
 
 ```
 install.sh     sets up a Raspberry Pi as a kiosk (see below)
+Makefile       shortcuts for running the server and tests on your computer
 web/           the dashboard and setup wizard: pages, scripts, styles, icons
 server/        server.py (serves web/, saves settings and favorites) and
                system.py (Wi-Fi, country, and time zone, for the wizard)
@@ -242,19 +243,22 @@ Only `web/` is served over the network; the rest of the project, including
 ```
 git clone https://github.com/davelund750/wdw-wait-times.git
 cd wdw-wait-times
-python3 server/server.py
+make start
 ```
 
-Then open http://localhost:8000 in a browser. The first time, the setup
+Then open http://localhost:8000 in a browser. `make stop` stops the server,
+`make restart` restarts it, `make status` says whether it's running, and
+`make logs` follows its output (kept in `.run/`). To run it in the terminal
+instead, use `make run` or `python3 server/server.py`, and stop it with
+Ctrl+C. Server settings go on the end, for example `make start PORT=8001`. The first time, the setup
 wizard comes up. On a computer that isn't a Pi, the server only pretends to
 change Wi-Fi, country, and time zone (it prints "pretend system" at startup):
 any Wi-Fi password works except ones starting with "wrong", and
-`WDW_FAKE_OFFLINE=1 python3 server/server.py` simulates a kiosk with no internet. To see roughly how it will look
+`make start WDW_FAKE_OFFLINE=1` simulates a kiosk with no internet. To see roughly how it will look
 on a small touchscreen, shrink the window to about 800x480 or 1024x600.
 
-The server doesn't send cache-control headers for the app's files, so after
-editing a file, a normal reload can show a stale copy. Use a **hard reload**
-(Ctrl+Shift+R, or Cmd+Shift+R on macOS) instead.
+The server tells browsers to check for a newer copy of the app's files on
+every load, so a normal reload picks up your edits.
 
 To open it from another device on the same network (a phone, say), browse to
 `http://<your computer's local IP address>:8000`.
@@ -384,7 +388,7 @@ The tests cover the app's decision logic (which slides and rides to show,
 closed parks, favorites, time formatting), the server (saved lists,
 settings, and the setup wizard's endpoints, including that other devices
 can't use them), and the weekly update script. They need only Node.js and Python 3, with nothing to
-install:
+install. `make test` runs them all, or run them one at a time:
 
 ```
 node --test tests/logic.test.js

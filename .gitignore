@@ -3,3 +3,6 @@
 
 # Python
 __pycache__/
+
+# Local server (make start)
+.run/

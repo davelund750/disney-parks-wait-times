@@ -8,31 +8,13 @@ kiosk gets that week.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 The project doesn't use version numbers, so sections are dated instead.
 
-## Unreleased
-
-### Added
-- README screenshots: the carousel, the grid, and the setup wizard's resort
-  step (in `docs/screenshots/`).
-
-### Changed
-- The project is organized into folders: `web/` (the dashboard and setup
-  wizard), `server/`, and `kiosk/` (the Pi side), with `install.sh` still at
-  the top. Installed kiosks move over on their next update: it pulls the new
-  layout and reruns the installer, which points everything at the new
-  locations.
-- The kiosk's wallpaper is a much smaller file (37 KB instead of 425 KB),
-  with no visible difference.
-- Removed the unused original landmark artwork (`landmarks/`), superseded by
-  `web/landmarks.js`.
-
-### Fixed
-- The kiosk's web server served the whole project folder, so any device on
-  its network could fetch the scripts, tests, or `.git` data. It now serves
-  only `web/`.
-
 ## 2026-09-27
 
 ### Added
+- A `Makefile` for running the app on your computer: `make start`,
+  `make stop`, `make restart`, `make status`, `make logs`, and `make test`.
+- README screenshots: the carousel, the grid, and the setup wizard's resort
+  step (in `docs/screenshots/`).
 - A factory reset, on the Settings screen's Reset tab: after a
   confirmation, it erases the settings, favorites, ignored items, trip
   countdown date, and saved Wi-Fi networks, and starts first-time setup
@@ -58,12 +40,24 @@ The project doesn't use version numbers, so sections are dated instead.
   design feedback and testing.
 
 ### Fixed
+- The kiosk's web server served the whole project folder, so any device on
+  its network could fetch the scripts, tests, or `.git` data. It now serves
+  only `web/`.
 - After an update, a browser could keep using stale copies of some of the
   app's files alongside new ones, leaving the dashboard stuck on "Loading
   wait times…". The server now has browsers check for newer files on every
   load.
 
 ### Changed
+- The project is organized into folders: `web/` (the dashboard and setup
+  wizard), `server/`, and `kiosk/` (the Pi side), with `install.sh` still at
+  the top. Installed kiosks move over on their next update: it pulls the new
+  layout and reruns the installer, which points everything at the new
+  locations.
+- The kiosk's wallpaper is a much smaller file (37 KB instead of 425 KB),
+  with no visible difference.
+- Removed the unused original landmark artwork (`landmarks/`), superseded by
+  `web/landmarks.js`.
 - After first-time setup, holding ⚙ now opens a tabbed Settings screen
   (Resort, Display, Wi-Fi, Location, Reset) instead of repeating every setup step,
   so one thing can be changed on its own. Each change is saved as soon as
