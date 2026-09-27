@@ -8,6 +8,7 @@
 #   make logs      follow the server's output
 #   make run       run it in this terminal instead (Ctrl+C stops it)
 #   make test      run all the tests
+#   make release VERSION=1.2.0   publish a release (see tools/release.sh)
 #
 # PORT, WDW_DATA_DIR, WDW_FAKE_OFFLINE and the other server settings pass
 # through, e.g. `make start PORT=8001` or `make start WDW_FAKE_OFFLINE=1`.
@@ -23,10 +24,10 @@ LOG_FILE := $(RUN_DIR)/server-$(PORT).log
 # True while the process in the PID file is alive.
 RUNNING = [ -f $(PID_FILE) ] && kill -0 "$$(cat $(PID_FILE))" 2>/dev/null
 
-.PHONY: help start stop restart status logs run test
+.PHONY: help start stop restart status logs run test release
 
 help:
-	@sed -n '4,10p' Makefile | sed 's/^# *//'
+	@sed -n '4,11p' Makefile | sed 's/^# *//'
 
 start:
 	@if $(RUNNING); then \
@@ -70,8 +71,12 @@ test:
 	TZ=Europe/London LANG=en_GB.UTF-8 node --test tests/logic.test.js
 	python3 -m unittest discover -s tests
 	bash tests/test_update.sh
+	bash tests/test_release.sh
 	@if command -v shellcheck >/dev/null; then \
-		shellcheck install.sh kiosk/kiosk.sh kiosk/update.sh tests/test_update.sh && echo "shellcheck: clean"; \
+		shellcheck install.sh kiosk/kiosk.sh kiosk/update.sh tools/release.sh tests/test_update.sh tests/test_release.sh && echo "shellcheck: clean"; \
 	else \
 		echo "shellcheck isn't installed; skipping the shell script lint."; \
 	fi
+
+release:
+	@tools/release.sh "$(VERSION)"

@@ -1,16 +1,27 @@
 # Changelog
 
-Notable changes to this project, newest first. Installed kiosks pick up
-changes from `main` in their weekly Sunday update (see
-[Updates](README.md#updates)), so each dated section below is roughly what a
-kiosk gets that week.
+Notable changes to this project, newest first. Installed kiosks install the
+newest release in their weekly Sunday update (see
+[Updates](README.md#updates)). "Unreleased" lists changes on `main` that
+aren't in a release yet, so no kiosk has them.
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-The project doesn't use version numbers, so sections are dated instead.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and version numbers follow [Semantic Versioning](https://semver.org). The
+dated sections before 1.0.0 were beta testing, with no version numbers:
+kiosks installed whatever was on `main` each week.
 
-## 2026-09-27
+## Unreleased
 
 ### Added
+- Version numbers and releases. Kiosks now install only published releases
+  (like `v1.0.0`) instead of whatever is on `main`, so unfinished work there
+  never reaches them. A withdrawn release (its tag deleted) sends them back
+  to the one before, and pre-releases are skipped. `make release
+  VERSION=X.Y.Z` publishes one, after checking that GitHub's tests passed.
+  Kiosks move over to this on their next update.
+- An About tab in Settings: shows the installed version, with a "Check for
+  updates and restart" button, so updating no longer means waiting for
+  Sunday or doing a factory reset.
 - A `Makefile` for running the app on your computer: `make start`,
   `make stop`, `make restart`, `make status`, `make logs`, and `make test`.
 - README screenshots: the carousel, the grid, and the setup wizard's resort

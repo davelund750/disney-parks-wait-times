@@ -1,6 +1,5 @@
-# Runs the tests on every push and pull request. Installed kiosks update
-# themselves from main every week, so a red check here means: don't let that
-# commit sit on main.
+# Runs the tests on every push and pull request. make release (tools/
+# release.sh) won't publish a commit these failed on.
 name: Tests
 
 on:
@@ -38,5 +37,8 @@ jobs:
       - name: Weekly update script
         run: bash tests/test_update.sh
 
+      - name: Release script
+        run: bash tests/test_release.sh
+
       - name: Shell script lint
-        run: shellcheck install.sh kiosk/kiosk.sh kiosk/update.sh tests/test_update.sh
+        run: shellcheck install.sh kiosk/kiosk.sh kiosk/update.sh tools/release.sh tests/test_update.sh tests/test_release.sh

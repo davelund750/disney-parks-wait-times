@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Weekly self-update: pull the latest version from GitHub, re-run the installer
-# if anything changed (so setup changes apply too, not just app files), then
+# Weekly self-update: switch to the newest release published on GitHub (the
+# newest vX.Y.Z tag, never unreleased work on main), re-run the installer if
+# that changed anything (so setup changes apply too, not just app files), then
 # reboot. The reboot happens every week, updates or not, which also clears
 # Chromium's memory build-up on a small Pi.
 #
@@ -29,28 +30,41 @@ as_owner() {
   fi
 }
 
+# The newest release: the highest vX.Y.Z tag. Pre-releases like v1.1.0-beta.1
+# are left out, so they never reach kiosks.
+latest_release() {
+  as_owner git tag --list 'v*' --sort=-version:refname \
+    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n 1p
+}
+
 # Everything runs inside main(), so bash has read this whole file before the
-# pull below can replace it.
+# checkout below can replace it.
 main() {
   cd "$APP_DIR" || exit 1
   log "checking for updates"
 
-  before="$(as_owner git rev-parse HEAD)"
-  if as_owner git pull --ff-only --quiet >> "$LOG_FILE" 2>&1; then
-    after="$(as_owner git rev-parse HEAD)"
-    if [ "$before" = "$after" ]; then
-      log "already up to date ($after)"
-    else
-      log "updated ${before:0:7} -> ${after:0:7}; re-running installer"
+  # Tags deleted on GitHub are dropped here too, so withdrawing a bad release
+  # there sends kiosks back to the one before it.
+  if ! as_owner git fetch --quiet --tags --prune --prune-tags --force origin >> "$LOG_FILE" 2>&1; then
+    log "git fetch FAILED (see above); keeping the current version"
+  elif ! release="$(latest_release)" || [ -z "$release" ]; then
+    log "no releases published yet; keeping the current version"
+  else
+    before="$(as_owner git rev-parse HEAD)"
+    target="$(as_owner git rev-parse "$release^{commit}")"
+    if [ "$before" = "$target" ]; then
+      log "already up to date ($release)"
+    elif as_owner git -c advice.detachedHead=false checkout --quiet --detach "$release" >> "$LOG_FILE" 2>&1; then
+      log "updated ${before:0:7} -> $release; re-running installer"
       # SUDO_USER tells the installer whose desktop and home folder to set up.
       if SUDO_USER="$APP_USER" ./install.sh --skip-wifi >> "$LOG_FILE" 2>&1; then
         log "installer finished"
       else
         log "installer FAILED (see above); rebooting anyway"
       fi
+    else
+      log "switching to $release FAILED (see above); keeping the current version"
     fi
-  else
-    log "git pull FAILED (see above); keeping the current version"
   fi
 
   log "rebooting"

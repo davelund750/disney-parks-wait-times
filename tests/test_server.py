@@ -178,6 +178,8 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(body["fake"])
         self.assertEqual(body["country"], "US")
+        self.assertIsInstance(body["version"], str)
+        self.assertTrue(body["version"])
         status, networks = self.request("GET", "/api/system/networks")
         names = [n["ssid"] for n in networks]
         self.assertEqual(len(names), len(set(names)))  # one entry per network
@@ -226,6 +228,22 @@ class ServerTest(unittest.TestCase):
             with self.subTest(body=body):
                 self.assertEqual(self.request("PUT", "/api/system/country", body)[0], 400)
         self.assertEqual(self.request("PUT", "/api/system/timezone", {"timezone": "Mars/Olympus"})[0], 400)
+
+
+class VersionTest(unittest.TestCase):
+    def test_describing_the_version(self):
+        server = importlib.import_module("server")
+        for described, shown in [
+            ("v1.2.0", "1.2.0"),  # a kiosk, on a release
+            ("v1.2.0-1-gabc1234", "1.2.0 + 1 change (abc1234)"),
+            ("v1.2.0-3-gabc1234", "1.2.0 + 3 changes (abc1234)"),
+            ("v1.2.0-3-gabc1234-dirty", "1.2.0 + 3 changes (abc1234), edited"),
+            ("abc1234", "development (abc1234)"),  # before any release
+            ("abc1234-dirty", "development (abc1234)"),
+            ("", "unknown"),  # not a git copy
+        ]:
+            with self.subTest(described=described):
+                self.assertEqual(server.describe_version(described), shown)
 
 
 class RemoteClientTest(ServerTest):

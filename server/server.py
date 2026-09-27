@@ -14,7 +14,8 @@ folder, so updating the app never overwrites them):
 For the setup wizard (see system.py). These change the Pi itself, so they
 only answer requests from the Pi, never from elsewhere on the network:
 
-  GET /api/system/status      current Wi-Fi network, online?, country, time zone
+  GET /api/system/status      current Wi-Fi network, online?, country, time
+                              zone, and the app's version
   GET /api/system/networks    nearby Wi-Fi networks, strongest first
   GET /api/system/countries   countries with their time zones
   PUT /api/system/wifi        {ssid, password, hidden} -> {ok, message}
@@ -34,13 +35,16 @@ Usage: python3 server/server.py   (PORT and WDW_DATA_DIR override defaults)
 
 import json
 import os
+import re
+import subprocess
 import tempfile
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 import system
 
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # The pages, scripts, and styles: the only files served.
-WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
+WEB_DIR = os.path.join(PROJECT_DIR, "web")
 DATA_DIR = os.environ.get("WDW_DATA_DIR", os.path.expanduser("~/.local/share/wdw-wait-times"))
 # Each saved list: its API path -> the file it's kept in.
 LISTS = {
@@ -62,6 +66,40 @@ LOCAL_ADDRESSES = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 PORT = int(os.environ.get("PORT", "8000"))
 MAX_BODY_BYTES = 64 * 1024
 SYSTEM = system.make_system()
+
+
+def describe_version(described):
+    """The app's version for people, from `git describe` output.
+
+    A kiosk sits on a release tag ("v1.2.0" -> "1.2.0"); a developer's copy
+    can be past one ("v1.2.0-3-gabc1234" -> "1.2.0 + 3 changes (abc1234)").
+    """
+    match = re.fullmatch(r"v(\d+\.\d+\.\d+)(?:-(\d+)-g([0-9a-f]+))?(-dirty)?", described)
+    if not match:
+        # No release tags yet: just the commit.
+        commit = described.removesuffix("-dirty")
+        return f"development ({commit})" if re.fullmatch(r"[0-9a-f]+", commit) else "unknown"
+    version, ahead, commit, dirty = match.groups()
+    if ahead:
+        version += f" + {ahead} change{'s' if ahead != '1' else ''} ({commit})"
+    if dirty:
+        version += ", edited"
+    return version
+
+
+def app_version():
+    try:
+        described = subprocess.run(
+            ["git", "describe", "--tags", "--match", "v[0-9]*", "--always", "--dirty"],
+            cwd=PROJECT_DIR, capture_output=True, text=True, timeout=10,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"  # no git, e.g. a downloaded copy
+    return describe_version(described)
+
+
+# Worked out once: an update reboots the kiosk, which restarts the server.
+VERSION = app_version()
 
 
 def read_list(filename):
@@ -174,7 +212,7 @@ class Handler(SimpleHTTPRequestHandler):
         if not self.is_local():
             self.send_error(403, "only available on the kiosk itself")
         elif action == "status":
-            self.send_json(200, {**SYSTEM.status(), "fake": SYSTEM.fake})
+            self.send_json(200, {**SYSTEM.status(), "fake": SYSTEM.fake, "version": VERSION})
         elif action == "networks":
             self.send_json(200, SYSTEM.networks())
         elif action == "countries":
@@ -234,5 +272,5 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     mode = " (pretend system: nothing on this computer is changed)" if SYSTEM.fake else ""
-    print(f"Serving {WEB_DIR} on port {PORT}; saved data in {DATA_DIR}{mode}", flush=True)
+    print(f"Version {VERSION}. Serving {WEB_DIR} on port {PORT}; saved data in {DATA_DIR}{mode}", flush=True)
     ThreadingHTTPServer(("", PORT), Handler).serve_forever()

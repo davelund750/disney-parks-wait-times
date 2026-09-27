@@ -255,8 +255,8 @@ rm -f "$SUDOERS_TMP"
 echo
 
 # ---- weekly self-update ----
-# Every Sunday at 4 AM (the Pi's local time), update.sh pulls the latest
-# version from GitHub, re-runs this installer if anything changed, and
+# Every Sunday at 4 AM (the Pi's local time), update.sh switches to the
+# newest release on GitHub, re-runs this installer if anything changed, and
 # reboots. Only possible when this folder is a git checkout.
 echo "==> Installing weekly update timer (Sundays 4:00 AM)"
 if [ -d "$APP_DIR/.git" ]; then
@@ -288,7 +288,7 @@ EOF
   sudo systemctl enable --now wdw-update.timer
   echo "    Next run: $(systemctl show wdw-update.timer -p NextElapseUSecRealtime --value)"
 else
-  echo "    Skipped: $APP_DIR isn't a git checkout, so there's nothing to pull."
+  echo "    Skipped: $APP_DIR isn't a git checkout, so it can't fetch releases."
   echo "    Clone the project from GitHub instead of copying it to enable updates."
 fi
 echo

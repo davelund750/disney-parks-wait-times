@@ -5,7 +5,7 @@
 //   - on first start, before setup is complete (all steps);
 //   - with ?wifi when it can't get online (just the Wi-Fi step);
 //   - with ?settings from its settings button, once setup is done: a
-//     tabbed Settings screen (Resort, Display, Wi-Fi, Location, Reset),
+//     tabbed Settings screen (Resort, Display, Wi-Fi, Location, About, Reset),
 //     where each change is saved as soon as it's tapped.
 // The /api/system endpoints it uses are in server.py and system.py.
 
@@ -650,6 +650,26 @@ const locationTab = {
   },
 };
 
+// The version, and a way to update now instead of waiting for Sunday.
+const aboutTab = {
+  render() {
+    if (doneStep.updating) {
+      doneStep.render(); // the "Checking for updates…" screen
+      return;
+    }
+    els.step.appendChild(el("h1", "setup-title", "WDW Wait Times"));
+    els.step.appendChild(el("p", "setup-text", `Version: ${wizard.status.version || "unknown"}`));
+    els.step.appendChild(el("p", "setup-text dim", "It installs new versions by itself every Sunday at 4 AM, then restarts."));
+    if (wizard.status.online) {
+      const update = el("button", "setup-btn primary", "Check for updates and restart");
+      update.addEventListener("click", updateAndRestart);
+      els.step.appendChild(update);
+    } else {
+      els.step.appendChild(el("p", "setup-text dim", "Checking for updates needs an internet connection."));
+    }
+  },
+};
+
 // Factory reset: erases everything the user has set up, saved Wi-Fi networks
 // included, so the kiosk starts over with first-time setup as if new (e.g.
 // before giving it to someone else).
@@ -715,6 +735,7 @@ const SETTINGS_TABS = [
   { label: "Display", step: displayStep },
   { label: "Wi-Fi", step: wifiStep },
   { label: "Location", step: locationTab },
+  { label: "About", step: aboutTab },
   { label: "Reset", step: resetTab },
 ];
 

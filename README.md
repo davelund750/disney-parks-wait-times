@@ -170,9 +170,10 @@ Park hours and show times are always in the resort's local time. If the kiosk
 later can't get online (a new router, a changed password), it goes straight
 to the Wi-Fi step by itself. To change any of these settings later, press and
 hold the ⚙ button on the dashboard: it opens a Settings screen with tabs
-(Resort, Display, Wi-Fi, Location, Reset), so one thing can be changed
-without going through every step, and each change is saved as soon as it's
-tapped. **Reset** is a factory reset: after a confirmation, it erases the
+(Resort, Display, Wi-Fi, Location, About, Reset), so one thing can be
+changed without going through every step, and each change is saved as soon
+as it's tapped. **About** shows the installed version and can check for
+updates right away. **Reset** is a factory reset: after a confirmation, it erases the
 settings, all favorites and ignored items, the trip countdown date, and
 every saved Wi-Fi network, and the kiosk starts over with first-time setup
 as if new. It goes offline until it's set up again, so do it on the kiosk
@@ -231,6 +232,7 @@ server/        server.py (serves web/, saves settings and favorites) and
                system.py (Wi-Fi, country, and time zone, for the wizard)
 kiosk/         the Pi side: the Chromium launcher, weekly updater, boot
                splash, wallpaper, and invisible-pointer helper
+tools/         release.sh, which publishes a release (see Updates)
 tests/         automated tests (see Tests)
 docs/          screenshots for this README
 ```
@@ -288,7 +290,9 @@ from another computer:
    ```
    Clone it (rather than copying the files over) so the Pi can
    [update itself](#updates). If you've forked the project, clone your fork:
-   the Pi updates from wherever it was cloned from.
+   the Pi updates from wherever it was cloned from. A fresh clone has the
+   latest code on `main`; the Pi moves to the newest release at its first
+   update (the setup wizard offers one at the end).
 3. **Reboot** with `sudo reboot`. The Pi starts straight into the kiosk. The
    app has no text fields, so the touchscreen is all you need from here on.
 
@@ -363,18 +367,37 @@ earlier output rather than adding to it.
 ## Updates
 
 A Pi installed from a git clone keeps itself up to date. Every Sunday at 4:00
-AM (the Pi's local time), `kiosk/update.sh` pulls the latest version from the
-repository it was cloned from, re-runs `./install.sh` if anything changed (so
-setup changes apply too, not just the app itself), and reboots. It reboots
-every week even when there's nothing new, which also clears Chromium's memory
-build-up on a small Pi.
+AM (the Pi's local time), `kiosk/update.sh` switches to the newest
+**release** in the repository it was cloned from, re-runs `./install.sh` if
+anything changed (so setup changes apply too, not just the app itself), and
+reboots. It reboots every week even when there's nothing new, which also
+clears Chromium's memory build-up on a small Pi.
 
-- **Publish a change:** push it to `main`. Every installed Pi picks it up the
-  following Sunday, so only push changes you've tested.
-- **Update now:** `sudo systemctl start wdw-update.service` (the Pi reboots
-  when done).
-- **See what changed:** [CHANGELOG.md](CHANGELOG.md) lists notable changes
-  by date.
+A release is a version number tag, like `v1.2.0`, on a commit on `main`.
+Pushing to `main` alone doesn't reach any kiosk, so work in progress can sit
+there safely; kiosks only ever install a release. Version numbers follow
+[semantic versioning](https://semver.org): the first number goes up for a
+change that needs a fresh install or new hardware, the second for new
+features, and the third for fixes only.
+
+- **Publish a release:** add what changed under "Unreleased" in
+  [CHANGELOG.md](CHANGELOG.md), push to `main`, wait for GitHub's tests to
+  pass, then run `make release VERSION=1.2.0`. It checks all of that, dates
+  the changelog section, tags the release, pushes it, and creates a
+  [GitHub Release](https://github.com/davelund750/wdw-wait-times/releases)
+  with the same notes. It needs the [GitHub CLI](https://cli.github.com)
+  (`gh`), signed in.
+- **Withdraw a bad release:** delete its tag on GitHub
+  (`git push origin :refs/tags/v1.2.0`). Kiosks go back to the newest
+  remaining release at their next update. Pre-release tags like
+  `v1.3.0-beta.1` are never installed.
+- **Update now:** hold ⚙, then About, then "Check for updates and restart",
+  or `sudo systemctl start wdw-update.service` over SSH (the Pi reboots when
+  done).
+- **See which version a Pi has:** hold ⚙, then About, or
+  `git -C ~/wdw-wait-times describe --tags` over SSH.
+- **See what changed:** [CHANGELOG.md](CHANGELOG.md) lists each release's
+  changes.
 - **See what happened on a Pi:** `cat /var/log/wdw-update.log`
 - **See when it runs next:** `systemctl list-timers wdw-update.timer`
 
@@ -387,19 +410,19 @@ version, and it still reboots.
 The tests cover the app's decision logic (which slides and rides to show,
 closed parks, favorites, time formatting), the server (saved lists,
 settings, and the setup wizard's endpoints, including that other devices
-can't use them), and the weekly update script. They need only Node.js and Python 3, with nothing to
-install. `make test` runs them all, or run them one at a time:
+can't use them), the weekly update script, and the release script. They
+need only Node.js and Python 3, with nothing to install. `make test` runs them all, or run them one at a time:
 
 ```
 node --test tests/logic.test.js
 python3 -m unittest discover -s tests
 bash tests/test_update.sh
+bash tests/test_release.sh
 ```
 
 GitHub runs them automatically on every push, along with a
-[ShellCheck](https://www.shellcheck.net) lint of the shell scripts. Since
-installed kiosks update themselves from `main` every week, check that the
-tests pass before letting a change sit there.
+[ShellCheck](https://www.shellcheck.net) lint of the shell scripts, and
+`make release` won't publish a commit they failed on.
 
 The page's own code is split in two: `logic.js` holds the parts that can be
 tested without a browser (it never touches the page or the network), and
