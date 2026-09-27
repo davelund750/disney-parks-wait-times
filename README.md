@@ -376,7 +376,8 @@ Baloo 2 display font and a small cursive "Walt Disney World" wordmark.
 
 ## Acknowledgments
 
-Thanks to **Kayleigh Lund** for UI/UX design feedback and testing.
+Thanks to **Kayleigh Lund**, a Graphic Design student at Ball State
+University, for UI/UX design feedback and testing.
 
 ## License
 
