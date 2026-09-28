@@ -12,6 +12,10 @@ kiosks installed whatever was on `main` each week.
 
 ## Unreleased
 
+No current unreleased changes.
+
+## 2.1.0 - 2026-09-28
+
 ### Added
 - Set up a kiosk straight from the SD card, with no SSH: flash it with
   Raspberry Pi Imager as usual, run `make sd` (or `python
