@@ -80,7 +80,7 @@ class InstallerTest(unittest.TestCase):
                 self.assertTrue(os.path.exists(os.path.join(PROJECT_DIR, path)))
 
     def test_scripts_run_directly_are_executable(self):
-        for path in ["install.sh", "kiosk/kiosk.sh", "kiosk/update.sh", "tools/release.sh"]:
+        for path in ["install.sh", "kiosk/kiosk.sh", "kiosk/update.sh", "kiosk/firstboot.sh", "tools/release.sh", "tools/prepare_sd.py"]:
             with self.subTest(path=path):
                 self.assertTrue(os.access(os.path.join(PROJECT_DIR, path), os.X_OK))
 

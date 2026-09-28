@@ -10,9 +10,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -36,5 +36,8 @@ jobs:
       - name: Release script
         run: bash tests/test_release.sh
 
+      - name: First-boot install
+        run: bash tests/test_firstboot.sh
+
       - name: Shell script lint
-        run: shellcheck install.sh kiosk/kiosk.sh kiosk/update.sh tools/release.sh tests/test_update.sh tests/test_release.sh
+        run: shellcheck install.sh kiosk/kiosk.sh kiosk/update.sh tools/release.sh kiosk/firstboot.sh tests/test_update.sh tests/test_release.sh tests/test_firstboot.sh

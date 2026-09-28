@@ -17,6 +17,13 @@ It covers one Disney resort at a time, chosen in the
 | Tokyo Disney Resort | Tokyo Disneyland, Tokyo DisneySea |
 | Shanghai Disney Resort | Shanghai Disneyland |
 
+Tokyo Disney Resort has wait times only. The data source has no show,
+parade, or character-greeting times for Tokyo, and no hours for individual
+attractions, so an attraction that opens later in the day reads "Closed"
+until it opens, rather than "Opens *time*". It also lists every attraction
+with a line, play areas included, so they all appear under Rides &
+Attractions; ignore (−) any you don't want in the carousel.
+
 Ride wait times and park hours refresh every 5 minutes; weather every 15.
 Everything is shown in the resort's local time.
 
@@ -238,9 +245,11 @@ Makefile       shortcuts for running the server and tests on your computer
 web/           the dashboard and setup wizard: pages, scripts, styles, icons
 server/        server.py (serves web/, saves settings and favorites) and
                system.py (Wi-Fi, country, and time zone, for the wizard)
-kiosk/         the Pi side: the Chromium launcher, weekly updater, boot
-               splash, wallpaper, and invisible-pointer helper
-tools/         release.sh, which publishes a release (see Updates)
+kiosk/         the Pi side: the Chromium launcher, weekly updater,
+               first-boot installer, boot splash, wallpaper, and
+               invisible-pointer helper
+tools/         release.sh, which publishes a release (see Updates), and
+               prepare_sd.py, which sets up an SD card to install itself
 tests/         automated tests (see Tests)
 docs/          screenshots for this README
 ```
@@ -275,15 +284,38 @@ To open it from another device on the same network (a phone, say), browse to
 
 ## Install on a Raspberry Pi
 
-No build step and no dependencies to install by hand: clone the project and
-run the installer.
+No build step and no dependencies to install by hand. The easiest way needs
+no keyboard, screen, or SSH during setup: the SD card installs the kiosk by
+itself on first boot. (Raspberry Pi OS does include an on-screen keyboard,
+Squeekboard, but it can't appear in front of the full-screen kiosk, so the
+app doesn't rely on it; the setup wizard has its own.)
 
-### Set up without a keyboard
+### Set up from the SD card (recommended)
 
-No keyboard is needed on the Pi. (Raspberry Pi OS does include an on-screen
-keyboard, Squeekboard, but it can't appear in front of the full-screen kiosk,
-so the app doesn't rely on it.) Everything up to the final reboot can be done
-from another computer:
+1. **Flash the card with [Raspberry Pi Imager](https://www.raspberrypi.com/software/):**
+   Raspberry Pi OS with desktop. In its OS customisation, set a hostname, a
+   username and password, your Wi-Fi network, and your locale. SSH is
+   optional.
+2. **Leave the card in your computer** and, from this project's folder, run:
+   ```
+   make sd
+   ```
+   or, where `make` isn't available (e.g. Windows),
+   `python tools/prepare_sd.py`. It finds the card's boot partition by
+   itself; if it can't, give its folder: `make sd BOOT=/Volumes/bootfs`, or
+   `python tools/prepare_sd.py E:\` on Windows. It adds one first-boot
+   step, next to Imager's own settings, which it doesn't read or change.
+3. **Put the card in the Pi and power it on.** It applies Imager's settings,
+   joins your Wi-Fi, clones the project (from the GitHub repository your
+   copy came from, so a fork installs the fork), switches to the newest
+   release, runs the installer, and restarts into the kiosk: about 15-20
+   minutes on a Pi 3, most of it with a plain desktop on screen. If it can't
+   finish (no internet, say), it tries again at the next power-on; its log
+   is `/var/log/disney-parks-firstboot.log` on the Pi.
+
+### Set up over SSH
+
+The same install, run by hand from another computer:
 
 1. **Pre-configure the SD card in Raspberry Pi Imager.** In its settings
    screen, set the hostname, username and password, Wi-Fi network, and
@@ -417,7 +449,8 @@ version, and it still reboots.
 The tests cover the app's decision logic (which slides and rides to show,
 closed parks, favorites, time formatting), the server (saved lists,
 settings, and the setup wizard's endpoints, including that other devices
-can't use them), the weekly update script, the release script, and that the
+can't use them), the weekly update script, the release script, the SD card setup and
+first-boot install, and that the
 kiosk's setup files agree with each other (page titles, service and theme
 names, the files the installer uses). They
 need only Node.js and Python 3, with nothing to install. `make test` runs them all, or run them one at a time:
@@ -427,6 +460,7 @@ node --test tests/logic.test.js
 python3 -m unittest discover -s tests
 bash tests/test_update.sh
 bash tests/test_release.sh
+bash tests/test_firstboot.sh
 ```
 
 GitHub runs them automatically on every push, along with a

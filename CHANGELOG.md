@@ -12,7 +12,27 @@ kiosks installed whatever was on `main` each week.
 
 ## Unreleased
 
-No current unreleased changes.
+### Added
+- Set up a kiosk straight from the SD card, with no SSH: flash it with
+  Raspberry Pi Imager as usual, run `make sd` (or `python
+  tools/prepare_sd.py`, on Windows too) with the card still in your
+  computer, and put it in the Pi. On first boot it installs the newest
+  release by itself and restarts into the kiosk; if it can't (no internet),
+  it tries again at the next power-on.
+
+### Changed
+- The "Updated" time and the calendar icon's day now use the resort's time
+  zone, like the clock, so they match when a resort is followed from
+  another time zone.
+- README: Tokyo Disney Resort has wait times only (the data source has no
+  show or greeting times, or hours for individual attractions, for Tokyo).
+- The tests on GitHub use the current versions of its checkout and Node.js
+  actions (the previous ones ran on a retired Node.js version).
+
+### Fixed
+- In the carousel, a ride name long enough to wrap onto two lines pushed
+  the card up over the resort's name on an 800x480 screen. The big wait
+  number now shrinks a little when needed so everything fits.
 
 ## 2.0.0 - 2026-09-27
 

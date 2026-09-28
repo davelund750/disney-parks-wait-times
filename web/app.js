@@ -176,7 +176,9 @@ async function fetchAllParks() {
   renderGrid();
   renderCarouselSlide();
   startTimer();
-  els.updated.textContent = `Updated ${new Date().toLocaleTimeString(DISPLAY_LOCALE, { hour12: displayPrefs.hour12 })}`;
+  // In the resort's time zone, like the clock.
+  const updated = new Date().toLocaleTimeString(DISPLAY_LOCALE, { hour12: displayPrefs.hour12, timeZone: parkTimeZone() });
+  els.updated.textContent = `Updated ${updated}`;
 }
 
 // Once both the saved lists and the first park data are in: start on
@@ -476,6 +478,25 @@ function renderCarouselSlide() {
 
   els.carouselPosition.textContent = `${state.index + 1} / ${state.sequence.length}`;
   renderHoursFor(slide.parkId);
+  fitCarouselCard();
+}
+
+// A long name wraps onto a second line, which can make the card taller than
+// the space between the top bar and the skyline on a short screen (800x480),
+// pushing it up over the resort's name. The big wait number is the one part
+// with room to give, so shrink it until the card fits.
+function fitCarouselCard() {
+  const value = els.carouselWait.querySelector(".value");
+  if (!value || els.carousel.hidden) return;
+  value.style.fontSize = "";
+  const padding = getComputedStyle(els.carousel);
+  const room = els.carousel.clientHeight - parseFloat(padding.paddingTop) - parseFloat(padding.paddingBottom);
+  let size = parseFloat(getComputedStyle(value).fontSize);
+  const smallest = size / 2;
+  while (els.carouselCard.offsetHeight > room && size > smallest) {
+    size *= 0.9;
+    value.style.fontSize = `${size}px`;
+  }
 }
 
 // A ride's wait or status in the carousel's large style (the carousel card,
@@ -806,7 +827,8 @@ function tickClock() {
     timeZone: parkTimeZone(),
   });
   els.clock.textContent = `${time} ${current.resort.clockLabel}`;
-  els.calIconDay.textContent = String(new Date().getDate());
+  // Today's date at the resort ("YYYY-MM-DD" -> day of the month).
+  els.calIconDay.textContent = String(Number(parkDayKey(new Date()).slice(8)));
 }
 
 // The resort's landmarks along the bottom, one button per park: tapping one
@@ -894,6 +916,7 @@ async function init() {
   renderTripCountdown();
   setInterval(renderTripCountdown, 1000);
 
+  window.addEventListener("resize", fitCarouselCard);
   els.detailsClose.addEventListener("click", closeRideDetails);
   els.detailsFav.addEventListener("click", () => toggleFavorite(state.detailsRideId));
   els.detailsIgnore.addEventListener("click", () => toggleIgnored(state.detailsRideId));
