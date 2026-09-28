@@ -5,12 +5,12 @@
 # reboot. The reboot happens every week, updates or not, which also clears
 # Chromium's memory build-up on a small Pi.
 #
-# Run as root by wdw-update.timer (installed by install.sh). To run it now:
-#   sudo systemctl start wdw-update.service
-# Log: /var/log/wdw-update.log
+# Run as root by disney-parks-update.timer (installed by install.sh). To run it now:
+#   sudo systemctl start disney-parks-update.service
+# Log: /var/log/disney-parks-update.log
 #
-# For tests (tests/test_update.sh), WDW_UPDATE_LOG changes the log file and
-# WDW_REBOOT_CMD replaces the reboot with another command.
+# For tests (tests/test_update.sh), DPWT_UPDATE_LOG changes the log file and
+# DPWT_REBOOT_CMD replaces the reboot with another command.
 
 set -uo pipefail
 
@@ -18,7 +18,7 @@ set -uo pipefail
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Owner of the project folder (GNU stat on the Pi; BSD stat elsewhere).
 APP_USER="$(stat -c %U "$APP_DIR" 2>/dev/null || stat -f %Su "$APP_DIR")"
-LOG_FILE="${WDW_UPDATE_LOG:-/var/log/wdw-update.log}"
+LOG_FILE="${DPWT_UPDATE_LOG:-/var/log/disney-parks-update.log}"
 
 log() { echo "$(date '+%F %T') $*" >> "$LOG_FILE"; }
 # git runs as the folder's owner: as root, it refuses a repo someone else owns.
@@ -57,7 +57,7 @@ main() {
     elif as_owner git -c advice.detachedHead=false checkout --quiet --detach "$release" >> "$LOG_FILE" 2>&1; then
       log "updated ${before:0:7} -> $release; re-running installer"
       # SUDO_USER tells the installer whose desktop and home folder to set up.
-      if SUDO_USER="$APP_USER" ./install.sh --skip-wifi >> "$LOG_FILE" 2>&1; then
+      if SUDO_USER="$APP_USER" ./install.sh >> "$LOG_FILE" 2>&1; then
         log "installer finished"
       else
         log "installer FAILED (see above); rebooting anyway"
@@ -68,8 +68,8 @@ main() {
   fi
 
   log "rebooting"
-  if [ -n "${WDW_REBOOT_CMD:-}" ]; then
-    "$WDW_REBOOT_CMD"
+  if [ -n "${DPWT_REBOOT_CMD:-}" ]; then
+    "$DPWT_REBOOT_CMD"
   else
     systemctl reboot
   fi

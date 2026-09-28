@@ -3,9 +3,9 @@
 
 Usage: make_blank_cursor_theme.py [theme-to-mirror]   (default: PiXtrix)
 
-Creates ~/.local/share/icons/wdw-blank with a fully transparent pointer under
+Creates ~/.local/share/icons/disney-parks-blank with a fully transparent pointer under
 every pointer name the mirrored theme has, so whatever shape a program asks
-for comes out invisible. Select it by setting XCURSOR_THEME=wdw-blank in
+for comes out invisible. Select it by setting XCURSOR_THEME=disney-parks-blank in
 ~/.config/labwc/environment. Delete the folder (and that line) to undo.
 """
 
@@ -13,7 +13,7 @@ import os
 import struct
 import sys
 
-THEME_NAME = "wdw-blank"
+THEME_NAME = "disney-parks-blank"
 THEME_DIR = os.path.expanduser(f"~/.local/share/icons/{THEME_NAME}")
 SOURCE_DIRS = ["/usr/share/icons", os.path.expanduser("~/.local/share/icons"), os.path.expanduser("~/.icons")]
 # Always covered, even if the mirrored theme is missing.
@@ -60,7 +60,7 @@ def main():
         os.symlink("left_ptr", path)
 
     with open(os.path.join(THEME_DIR, "index.theme"), "w") as f:
-        f.write(f"[Icon Theme]\nName={THEME_NAME}\nComment=Invisible pointer for the WDW kiosk\n")
+        f.write(f"[Icon Theme]\nName={THEME_NAME}\nComment=Invisible pointer for the Disney Parks Wait Times kiosk\n")
 
     print(f"Wrote {THEME_DIR} ({len(names)} pointer names, mirroring {theme})")
 

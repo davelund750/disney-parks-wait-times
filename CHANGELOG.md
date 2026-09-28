@@ -12,7 +12,25 @@ kiosks installed whatever was on `main` each week.
 
 ## Unreleased
 
-No current unreleased changes.
+**Needs a fresh install:** a kiosk on 1.2.0 or earlier can't update to this
+version. Re-flash its SD card and install it again (see
+[Install on a Raspberry Pi](README.md#install-on-a-raspberry-pi)).
+
+### Changed
+- The rest of the rename to Disney Parks Wait Times, on the Pi itself: the
+  install folder (`~/disney-parks-wait-times`), the services
+  (`disney-parks-wait-times`, `disney-parks-update`), the saved-data folder
+  (`~/.local/share/disney-parks-wait-times`), the update log
+  (`/var/log/disney-parks-update.log`), the boot splash theme, and the
+  settings for trying it on a computer (now `DPWT_...` instead of
+  `WDW_...`, e.g. `DPWT_FAKE_OFFLINE=1`).
+
+### Removed
+- The installer's Wi-Fi prompt and its `--skip-wifi` option: Raspberry Pi
+  Imager sets up Wi-Fi before installing, and the kiosk's setup wizard
+  handles it after. The installer now takes no options.
+- Support for moving kiosks over from older versions (the old GitHub
+  address, file layout, and update method), now that none are left.
 
 ## 1.2.0 - 2026-09-27
 

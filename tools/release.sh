@@ -16,7 +16,7 @@
 # as "Release X.Y.Z", tags it vX.Y.Z, pushes both, and creates a GitHub
 # Release with the same notes.
 #
-# For tests (tests/test_release.sh), WDW_RELEASE_OFFLINE=1 skips the two
+# For tests (tests/test_release.sh), DPWT_RELEASE_OFFLINE=1 skips the two
 # steps that need the gh command: the test check and the GitHub Release.
 
 set -euo pipefail
@@ -29,7 +29,7 @@ version="${1:-}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
   || fail "give the version as X.Y.Z, e.g. make release VERSION=1.2.0"
 tag="v$version"
-offline="${WDW_RELEASE_OFFLINE:-}"
+offline="${DPWT_RELEASE_OFFLINE:-}"
 
 [ "$(git branch --show-current)" = "main" ] || fail "switch to main first."
 [ -z "$(git status --porcelain)" ] || fail "commit or undo your changes first (see git status)."

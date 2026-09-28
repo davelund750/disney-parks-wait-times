@@ -10,8 +10,8 @@
 #   make test      run all the tests
 #   make release VERSION=1.2.0   publish a release (see tools/release.sh)
 #
-# PORT, WDW_DATA_DIR, WDW_FAKE_OFFLINE and the other server settings pass
-# through, e.g. `make start PORT=8001` or `make start WDW_FAKE_OFFLINE=1`.
+# PORT, DPWT_DATA_DIR, DPWT_FAKE_OFFLINE and the other server settings pass
+# through, e.g. `make start PORT=8001` or `make start DPWT_FAKE_OFFLINE=1`.
 
 PORT ?= 8000
 export PORT

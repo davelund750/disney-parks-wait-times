@@ -24,12 +24,12 @@ class ServerTest(unittest.TestCase):
 
     def setUp(self):
         self.data_dir = tempfile.TemporaryDirectory()
-        # server.py reads WDW_DATA_DIR when it's imported, so (re)import it
+        # server.py reads DPWT_DATA_DIR when it's imported, so (re)import it
         # with this test's folder in place.
-        os.environ["WDW_DATA_DIR"] = self.data_dir.name
+        os.environ["DPWT_DATA_DIR"] = self.data_dir.name
         # Never touch the real system, even on a Pi.
-        os.environ["WDW_FAKE_SYSTEM"] = "1"
-        os.environ.pop("WDW_FAKE_OFFLINE", None)
+        os.environ["DPWT_FAKE_SYSTEM"] = "1"
+        os.environ.pop("DPWT_FAKE_OFFLINE", None)
         server = importlib.reload(importlib.import_module("server"))
         remote = self.remote_client
 
@@ -48,8 +48,8 @@ class ServerTest(unittest.TestCase):
         self.httpd.shutdown()
         self.httpd.server_close()
         self.data_dir.cleanup()
-        del os.environ["WDW_DATA_DIR"]
-        del os.environ["WDW_FAKE_SYSTEM"]
+        del os.environ["DPWT_DATA_DIR"]
+        del os.environ["DPWT_FAKE_SYSTEM"]
 
     def request(self, method, path, body=None):
         """Returns (status, parsed JSON or raw bytes)."""

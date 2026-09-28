@@ -4,7 +4,7 @@
 # Builds a throwaway "GitHub" (a local bare repo) and a "Pi" clone of it, with
 # a stand-in installer, then runs the real kiosk/update.sh in several
 # situations: releases, unreleased work, pre-releases, a withdrawn release,
-# failures, and kiosks moving over from older updaters.
+# and failures.
 # The reboot is replaced with a no-op, so this is safe to run anywhere.
 
 set -uo pipefail
@@ -13,8 +13,8 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-export WDW_UPDATE_LOG="$WORK/update.log"
-export WDW_REBOOT_CMD=true
+export DPWT_UPDATE_LOG="$WORK/update.log"
+export DPWT_REBOOT_CMD=true
 export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com
 export GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
 
@@ -22,10 +22,10 @@ failures=0
 pass() { echo "  ok    $1"; }
 fail() { echo "  FAIL  $1"; failures=$((failures + 1)); }
 expect_log() { # description, pattern
-  if grep -q -- "$2" "$WDW_UPDATE_LOG"; then pass "$1"; else fail "$1 (log: $(tr '\n' '|' < "$WDW_UPDATE_LOG"))"; fi
+  if grep -q -- "$2" "$DPWT_UPDATE_LOG"; then pass "$1"; else fail "$1 (log: $(tr '\n' '|' < "$DPWT_UPDATE_LOG"))"; fi
 }
 expect_no_log() {
-  if grep -q -- "$2" "$WDW_UPDATE_LOG"; then fail "$1"; else pass "$1"; fi
+  if grep -q -- "$2" "$DPWT_UPDATE_LOG"; then fail "$1"; else pass "$1"; fi
 }
 expect_on() { # description, pi folder, dev folder, what the Pi should be on
   if [ "$(git -C "$2" rev-parse HEAD)" = "$(git -C "$3" rev-parse "$4^{commit}")" ]; then
@@ -61,7 +61,7 @@ release() { # dev folder, tag: tag main's tip as a release and push the tag
   git -C "$1" tag "$2"
   git -C "$1" push -q origin "$2"
 }
-run_update() { : > "$WDW_UPDATE_LOG"; "$@"; }
+run_update() { : > "$DPWT_UPDATE_LOG"; "$@"; }
 
 make_github hub "$PROJECT_DIR/kiosk/update.sh" kiosk/update.sh
 DEV="$WORK/hub-dev"
@@ -82,7 +82,7 @@ publish "$DEV" "second version"
 release "$DEV" v1.0.0
 run_update "$UPDATE"
 expect_log "switches to it" "updated .* -> v1.0.0"
-expect_log "re-runs the installer, skipping Wi-Fi" "stand-in installer ran with: --skip-wifi"
+expect_log "re-runs the installer" "stand-in installer ran with:"
 expect_log "reports the installer finished" "installer finished"
 expect_log "reboots" "rebooting"
 expect_on "ends up on the release" "$PI" "$DEV" v1.0.0
@@ -148,41 +148,6 @@ run_update "$UPDATE"
 expect_log "logs the failure" "installer FAILED"
 expect_log "still reboots" "rebooting"
 expect_on "keeps the new version" "$PI" "$DEV" v1.12.0
-
-# A kiosk still running an older updater, from a past commit: its next update
-# must bring in the current updater, which then follows releases.
-migrate() { # name, commit, the updater's path in that commit
-  local old="$WORK/$1-old-updater"
-  if ! git -C "$PROJECT_DIR" show "$2:$3" > "$old" 2>/dev/null; then
-    echo "  skip  (the old updater from $2 isn't in this checkout's history)"
-    return
-  fi
-  make_github "$1" "$old" "$3"
-  local dev="$WORK/$1-dev" pi="$WORK/$1-pi"
-  git clone -q "$WORK/$1.git" "$pi"
-  # The change: today's updater in kiosk/, published on main with a release.
-  git -C "$dev" rm -q "$3"
-  mkdir -p "$dev/kiosk"
-  cp "$PROJECT_DIR/kiosk/update.sh" "$dev/kiosk/update.sh"
-  chmod +x "$dev/kiosk/update.sh"
-  publish "$dev" "release updater"
-  release "$dev" v1.0.0
-  run_update "$pi/$3"   # the old path, as its systemd unit still has it
-  expect_log "the old updater takes the change" "updated "
-  expect_log "and runs the installer, which rewrites the paths" "stand-in installer ran with: --skip-wifi"
-  if [ -x "$pi/kiosk/update.sh" ]; then pass "ends up with the new updater"; else fail "ends up with the new updater"; fi
-  publish "$dev" "unreleased work"
-  publish "$dev" "the next release"
-  release "$dev" v1.0.1
-  run_update "$pi/kiosk/update.sh"
-  expect_log "the next update follows releases" "updated .* -> v1.0.1"
-}
-
-echo "A kiosk on the old, flat layout (update.sh at the top level):"
-migrate flat 924f248 update.sh
-
-echo "A kiosk whose updater follows main (before releases):"
-migrate main fdf116c kiosk/update.sh
 
 echo
 if [ "$failures" -eq 0 ]; then

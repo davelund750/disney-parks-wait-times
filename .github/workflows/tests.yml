@@ -11,10 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          # Full history: the update test replays a kiosk migrating from an
-          # older commit's file layout.
-          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -31,7 +27,7 @@ jobs:
           TZ: Europe/London
           LANG: en_GB.UTF-8
 
-      - name: Favorites server
+      - name: Server
         run: python3 -m unittest discover -s tests -v
 
       - name: Weekly update script

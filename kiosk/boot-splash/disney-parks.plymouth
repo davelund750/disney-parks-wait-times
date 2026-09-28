@@ -4,5 +4,5 @@ Description=Magic Starting boot splash for the Disney Parks Wait Times kiosk
 ModuleName=script
 
 [script]
-ImageDir=/usr/share/plymouth/themes/wdw
-ScriptFile=/usr/share/plymouth/themes/wdw/wdw.script
+ImageDir=/usr/share/plymouth/themes/disney-parks
+ScriptFile=/usr/share/plymouth/themes/disney-parks/disney-parks.script

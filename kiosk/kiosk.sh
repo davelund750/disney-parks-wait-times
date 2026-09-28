@@ -8,7 +8,7 @@
 # local DevTools endpoint and reload it if the app hasn't loaded.
 #
 # Started by the autostart entry that install.sh creates. Writes what it saw to
-# ~/.cache/wdw-kiosk.log.
+# ~/.cache/disney-parks-kiosk.log.
 
 MAX_WAIT_SECS=90
 APP_URL="http://127.0.0.1:8000/?kiosk"  # ?kiosk hides the mouse pointer
@@ -17,8 +17,8 @@ DEBUG_PORT=9222
 LOAD_TIMEOUT_SECS=60
 MAX_RETRIES=3
 # Chromium only allows the DevTools port with a non-default profile.
-PROFILE_DIR="$HOME/.config/wdw-kiosk-chromium"
-LOG_FILE="$HOME/.cache/wdw-kiosk.log"
+PROFILE_DIR="$HOME/.config/disney-parks-kiosk-chromium"
+LOG_FILE="$HOME/.cache/disney-parks-kiosk.log"
 
 mkdir -p "$(dirname "$LOG_FILE")"
 log() { echo "$(date '+%F %T') $*" >> "$LOG_FILE"; }

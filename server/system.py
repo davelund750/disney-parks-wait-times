@@ -5,7 +5,7 @@ RealSystem uses the Pi's own tools (nmcli, timedatectl, raspi-config).
 install.sh grants the kiosk's user permission for exactly these actions.
 FakeSystem only pretends, so the wizard can be tried on a computer that
 isn't a Pi; server.py picks it automatically when nmcli isn't installed, or
-when WDW_FAKE_SYSTEM=1.
+when DPWT_FAKE_SYSTEM=1.
 """
 
 import os
@@ -134,7 +134,7 @@ class RealSystem:
         """Starts the update service (update.sh): pull the latest version,
         rerun the installer if anything changed, and reboot. Returns right
         away; the reboot follows shortly."""
-        return self._run("systemctl", "start", "--no-block", "wdw-update.service").returncode == 0
+        return self._run("systemctl", "start", "--no-block", "disney-parks-update.service").returncode == 0
 
     def forget_wifi(self):
         """Deletes every saved Wi-Fi network (not wired ones), e.g. for a
@@ -227,14 +227,14 @@ class RealSystem:
 class FakeSystem:
     """Pretends to be a Pi, for trying the wizard elsewhere. Connecting works
     for any password except ones starting with "wrong". It reports being online (as the computer
-    running it presumably is), unless WDW_FAKE_OFFLINE=1, which simulates a
-    kiosk with no Wi-Fi until it's connected. WDW_FAKE_STATUS_DELAY (seconds)
+    running it presumably is), unless DPWT_FAKE_OFFLINE=1, which simulates a
+    kiosk with no Wi-Fi until it's connected. DPWT_FAKE_STATUS_DELAY (seconds)
     makes the status check as slow as a real Pi 3's."""
 
     fake = True
 
     def __init__(self):
-        self._offline = os.environ.get("WDW_FAKE_OFFLINE") == "1"
+        self._offline = os.environ.get("DPWT_FAKE_OFFLINE") == "1"
         self._ssid = None if self._offline else "HomeWiFi"
         self._country = "US"
         self._timezone = "America/New_York"
@@ -250,7 +250,7 @@ class FakeSystem:
         ])
 
     def status(self):
-        time.sleep(float(os.environ.get("WDW_FAKE_STATUS_DELAY", "0")))
+        time.sleep(float(os.environ.get("DPWT_FAKE_STATUS_DELAY", "0")))
         return {"ssid": self._ssid, "online": self._ssid is not None, "country": self._country,
                 "timezone": self._timezone}
 
@@ -290,6 +290,6 @@ class FakeSystem:
 
 
 def make_system():
-    if os.environ.get("WDW_FAKE_SYSTEM") == "1" or shutil.which("nmcli") is None:
+    if os.environ.get("DPWT_FAKE_SYSTEM") == "1" or shutil.which("nmcli") is None:
         return FakeSystem()
     return RealSystem()

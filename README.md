@@ -131,7 +131,7 @@ rides show instead of the closed slide.
 Tap the ☆ in a grid card's corner, or the "☆ Favorite" button on a carousel
 slide, to add a ride; tap the filled ★ to remove it. Favorites are saved on
 the device running `server.py`, in
-`~/.local/share/wdw-wait-times/favorites.json` (set `WDW_DATA_DIR` to change
+`~/.local/share/disney-parks-wait-times/favorites.json` (set `DPWT_DATA_DIR` to change
 the folder). Keeping them outside the project folder means they survive
 reboots and updates.
 
@@ -146,7 +146,7 @@ anything that appears later starts out active. Ignoring a favorite keeps it
 starred; it's just hidden.
 
 Like favorites, the ignored list is saved on the device running
-`server.py`, in `~/.local/share/wdw-wait-times/ignored.json`, so each kiosk
+`server.py`, in `~/.local/share/disney-parks-wait-times/ignored.json`, so each kiosk
 keeps its own list across reboots and updates.
 
 ### Setup wizard
@@ -189,7 +189,7 @@ again, so do it on the kiosk itself rather than over a remote connection.
 
 The wizard only works on the kiosk itself: other devices on the network can
 view the dashboard, but can't change the kiosk's Wi-Fi, country, or time
-zone. The settings are saved in `~/.local/share/wdw-wait-times/settings.json`.
+zone. The settings are saved in `~/.local/share/disney-parks-wait-times/settings.json`.
 
 ### Weather, park hours, and trip countdown
 
@@ -264,7 +264,7 @@ Ctrl+C. Server settings go on the end, for example `make start PORT=8001`. The f
 wizard comes up. On a computer that isn't a Pi, the server only pretends to
 change Wi-Fi, country, and time zone (it prints "pretend system" at startup):
 any Wi-Fi password works except ones starting with "wrong", and
-`make start WDW_FAKE_OFFLINE=1` simulates a kiosk with no internet. To see roughly how it will look
+`make start DPWT_FAKE_OFFLINE=1` simulates a kiosk with no internet. To see roughly how it will look
 on a small touchscreen, shrink the window to about 800x480 or 1024x600.
 
 The server tells browsers to check for a newer copy of the app's files on
@@ -290,11 +290,10 @@ from another computer:
    locale, and enable SSH. The Pi then boots straight onto your network with
    SSH turned on.
 2. **Connect over SSH** from another computer (`ssh <user>@<hostname>`), then
-   clone the project and run the installer. Wi-Fi is already set up from step
-   1, so skip that part of the installer:
+   clone the project and run the installer:
    ```
    git clone https://github.com/davelund750/disney-parks-wait-times.git ~/disney-parks-wait-times
-   cd ~/disney-parks-wait-times && ./install.sh --skip-wifi
+   cd ~/disney-parks-wait-times && ./install.sh
    ```
    Clone it (rather than copying the files over) so the Pi can
    [update itself](#updates). If you've forked the project, clone your fork:
@@ -302,7 +301,8 @@ from another computer:
    latest code on `main`; the Pi moves to the newest release at its first
    update (the setup wizard offers one at the end).
 3. **Reboot** with `sudo reboot`. The Pi starts straight into the kiosk. The
-   app has no text fields, so the touchscreen is all you need from here on.
+   setup wizard has its own on-screen keyboard (for Wi-Fi passwords), so the
+   touchscreen is all you need from here on.
 
 If SSH isn't an option (for example, when troubleshooting a display or boot
 problem), plug in a USB keyboard and mouse temporarily.
@@ -318,17 +318,15 @@ resort, and Wi-Fi on the touchscreen.
 
 ### What the installer does
 
-Run `./install.sh` from inside the project folder, without `--skip-wifi` if
-you want it to set up Wi-Fi. In order, it:
+Run `./install.sh` from inside the project folder. It leaves Wi-Fi alone:
+Raspberry Pi Imager sets that up, and after that the kiosk's
+[setup wizard](#setup-wizard) does. In order, it:
 
-- **Optionally sets up Wi-Fi** (country code, network name, password). The
-  password is typed at the prompt and passed straight to `raspi-config`; it's
-  never written to a file.
 - **Installs a color emoji font** (`fonts-noto-color-emoji`). The weather
   icons, the tab icons, and the special-event ticket are emoji; Raspberry Pi
   OS doesn't include an emoji font, so without it they show up as empty
   boxes.
-- **Installs the local server** as a systemd service (`wdw-wait-times`),
+- **Installs the local server** as a systemd service (`disney-parks-wait-times`),
   serving the app on `http://localhost:8000` and restarting it if it ever
   stops. Browsers block the app's data requests from a page opened as a
   plain file, which is why a server is needed at all.
@@ -342,7 +340,7 @@ you want it to set up Wi-Fi. In order, it:
     the desktop keyring, which would otherwise trigger password pop-ups;
   - reloads the page if it hasn't loaded within a minute of Chromium
     starting, via `kiosk_navigate.py`;
-  - logs each boot to `~/.cache/wdw-kiosk.log`.
+  - logs each boot to `~/.cache/disney-parks-kiosk.log`.
 - **Tidies the desktop around the kiosk**, as personal settings layered over
   the system defaults: a "Magic Loading…" wallpaper (`kiosk/wallpaper.jpg`)
   with no desktop icons, an auto-hiding taskbar with pop-up notifications
@@ -401,15 +399,14 @@ features, and the third for fixes only.
   remaining release at their next update. Pre-release tags like
   `v1.3.0-beta.1` are never installed.
 - **Update now:** hold ⚙, then About, then "Check for updates and restart",
-  or `sudo systemctl start wdw-update.service` over SSH (the Pi reboots when
+  or `sudo systemctl start disney-parks-update.service` over SSH (the Pi reboots when
   done).
 - **See which version a Pi has:** hold ⚙, then About, or
-  `git -C ~/disney-parks-wait-times describe --tags` over SSH (`~/wdw-wait-times`
-  on a kiosk installed before the project was renamed in 1.2.0).
+  `git -C ~/disney-parks-wait-times describe --tags` over SSH.
 - **See what changed:** [CHANGELOG.md](CHANGELOG.md) lists each release's
   changes.
-- **See what happened on a Pi:** `cat /var/log/wdw-update.log`
-- **See when it runs next:** `systemctl list-timers wdw-update.timer`
+- **See what happened on a Pi:** `cat /var/log/disney-parks-update.log`
+- **See when it runs next:** `systemctl list-timers disney-parks-update.timer`
 
 If an update can't be applied cleanly (for example, because files were edited
 directly on the Pi), it's skipped and logged, the Pi keeps its current

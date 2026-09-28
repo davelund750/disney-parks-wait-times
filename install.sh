@@ -2,34 +2,27 @@
 # Disney Parks Wait Times - Raspberry Pi kiosk installer.
 #
 # Run this ON THE PI, from inside the project folder:
-#   ./install.sh            (prompts for Wi-Fi setup)
-#   ./install.sh --skip-wifi (leaves networking alone, e.g. already on Ethernet)
+#   ./install.sh
 #
-# Sets up: (1) optionally, Wi-Fi via raspi-config, (2) a systemd service that
-# serves this folder over http://localhost:8000, (3) a kiosk autostart entry
-# that launches Chromium against it, (4) a tidy kiosk desktop (loading
-# wallpaper, no icons, hidden taskbar, no notifications, invisible pointer),
-# (5) a "Magic Starting..." boot splash, (6) permissions for the on-screen
-# setup wizard (Wi-Fi, country, time zone), (7) a weekly self-update from
-# GitHub (Sundays 4 AM, then a reboot), (8) screen blanking disabled and
-# desktop autologin enabled so it comes up hands-free after a reboot.
+# Sets up: (1) a systemd service that serves the app over
+# http://localhost:8000, (2) a kiosk autostart entry that launches Chromium
+# against it, (3) a tidy kiosk desktop (loading wallpaper, no icons, hidden
+# taskbar, no notifications, invisible pointer), (4) a "Magic Starting..."
+# boot splash, (5) permissions for the on-screen setup wizard (Wi-Fi,
+# country, time zone), (6) a weekly self-update from GitHub (Sundays 4 AM,
+# then a reboot), (7) screen blanking disabled and desktop autologin enabled
+# so it comes up hands-free after a reboot.
 #
-# Nothing here stores your Wi-Fi password on disk — it's typed at the prompt
-# and passed straight to raspi-config.
+# It leaves Wi-Fi alone: Raspberry Pi Imager sets it up, and after that the
+# kiosk's setup wizard does, on the touchscreen.
 
 set -euo pipefail
 
-SKIP_WIFI=false
-for arg in "$@"; do
-  case "$arg" in
-    --skip-wifi) SKIP_WIFI=true ;;
-    *)
-      echo "Unknown option: $arg" >&2
-      echo "Usage: $0 [--skip-wifi]" >&2
-      exit 1
-      ;;
-  esac
-done
+if [ "$#" -gt 0 ]; then
+  echo "Unknown option: $1" >&2
+  echo "Usage: $0   (no options)" >&2
+  exit 1
+fi
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_USER="${SUDO_USER:-$USER}"
@@ -45,33 +38,6 @@ echo "    App folder : $APP_DIR"
 echo "    Running as : $APP_USER ($APP_HOME)"
 echo
 
-# ---- Wi-Fi ----
-if [ "$SKIP_WIFI" = false ]; then
-  read -rp "Configure Wi-Fi now? [y/N] " ans
-  if [[ "$ans" =~ ^[Yy]$ ]]; then
-    read -rp "Wi-Fi country code, 2 letters e.g. US (leave blank to skip): " WIFI_COUNTRY
-    if [ -n "$WIFI_COUNTRY" ]; then
-      sudo raspi-config nonint do_wifi_country "$WIFI_COUNTRY"
-    fi
-
-    read -rp "Wi-Fi SSID: " WIFI_SSID
-    read -rsp "Wi-Fi password: " WIFI_PASSWORD
-    echo
-
-    if [ -z "$WIFI_SSID" ]; then
-      echo "No SSID entered, skipping Wi-Fi setup."
-    else
-      sudo raspi-config nonint do_wifi_ssid_passphrase "$WIFI_SSID" "$WIFI_PASSWORD"
-      echo "==> Wi-Fi configured for \"$WIFI_SSID\""
-    fi
-  else
-    echo "==> Skipping Wi-Fi setup"
-  fi
-else
-  echo "==> Skipping Wi-Fi setup (--skip-wifi)"
-fi
-echo
-
 # ---- emoji font ----
 # The app's park and weather icons are emoji, and Raspberry Pi OS ships
 # without a color emoji font, so Chromium would draw them as empty boxes.
@@ -80,8 +46,8 @@ sudo apt-get install -y fonts-noto-color-emoji
 echo
 
 # ---- static file server (systemd) ----
-echo "==> Installing systemd service (wdw-wait-times.service)"
-sudo tee /etc/systemd/system/wdw-wait-times.service >/dev/null <<EOF
+echo "==> Installing systemd service (disney-parks-wait-times.service)"
+sudo tee /etc/systemd/system/disney-parks-wait-times.service >/dev/null <<EOF
 [Unit]
 Description=Disney Parks Wait Times server
 After=network-online.target
@@ -97,9 +63,9 @@ WantedBy=multi-user.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl enable wdw-wait-times
+sudo systemctl enable disney-parks-wait-times
 # restart (not just start) so a re-run picks up a changed server or unit file
-sudo systemctl restart wdw-wait-times
+sudo systemctl restart disney-parks-wait-times
 echo
 
 # ---- chromium kiosk autostart ----
@@ -113,14 +79,14 @@ if [ -z "$CHROMIUM_BIN" ]; then
 fi
 
 mkdir -p "$APP_HOME/.config/autostart"
-cat > "$APP_HOME/.config/autostart/wdw-wait-times.desktop" <<EOF
+cat > "$APP_HOME/.config/autostart/disney-parks-wait-times.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Disney Parks Wait Times
 Exec=$APP_DIR/kiosk/kiosk.sh
 X-GNOME-Autostart-enabled=true
 EOF
-sudo chown "$APP_USER":"$APP_USER" "$APP_HOME/.config/autostart/wdw-wait-times.desktop"
+sudo chown "$APP_USER":"$APP_USER" "$APP_HOME/.config/autostart/disney-parks-wait-times.desktop"
 chmod +x "$APP_DIR/kiosk/kiosk.sh"
 echo "    Using $CHROMIUM_BIN"
 echo
@@ -170,11 +136,11 @@ LABWC_ENV="$APP_HOME/.config/labwc/environment"
 mkdir -p "$(dirname "$LABWC_ENV")"
 touch "$LABWC_ENV"
 sed -i '/^XCURSOR_THEME=/d' "$LABWC_ENV"
-echo "XCURSOR_THEME=wdw-blank" >> "$LABWC_ENV"
+echo "XCURSOR_THEME=disney-parks-blank" >> "$LABWC_ENV"
 
 sudo chown -R "$APP_USER":"$APP_USER" \
   "$APP_HOME/.config/pcmanfm" "$APP_HOME/.config/wf-panel-pi" \
-  "$APP_HOME/.config/labwc" "$APP_HOME/.local/share/icons/wdw-blank"
+  "$APP_HOME/.config/labwc" "$APP_HOME/.local/share/icons/disney-parks-blank"
 echo
 
 # ---- boot splash ----
@@ -183,14 +149,14 @@ echo
 # which takes a minute, so skip it when the theme is already installed and
 # unchanged. Undo with: sudo plymouth-set-default-theme -R pix
 echo "==> Installing boot splash"
-SPLASH_DIR=/usr/share/plymouth/themes/wdw
-if [ "$(plymouth-set-default-theme 2>/dev/null)" = "wdw" ] \
+SPLASH_DIR=/usr/share/plymouth/themes/disney-parks
+if [ "$(plymouth-set-default-theme 2>/dev/null)" = "disney-parks" ] \
   && diff -rq "$APP_DIR/kiosk/boot-splash" "$SPLASH_DIR" >/dev/null 2>&1; then
   echo "    Already installed"
 else
   sudo mkdir -p "$SPLASH_DIR"
   sudo cp "$APP_DIR"/kiosk/boot-splash/* "$SPLASH_DIR/"
-  sudo plymouth-set-default-theme -R wdw
+  sudo plymouth-set-default-theme -R disney-parks
 fi
 echo
 
@@ -212,13 +178,13 @@ echo
 # $APP_USER without anyone logged in, so by default every change it asks for
 # needs a password. Grant exactly what it uses, nothing more:
 #  - a polkit rule: scan for and join Wi-Fi networks, set the time zone;
-#  - a polkit rule: start the update service (wdw-update.service, below), so
+#  - a polkit rule: start the update service (disney-parks-update.service, below), so
 #    setup can offer to check for updates right away;
 #  - a sudo rule: read and set the Wi-Fi country with raspi-config, and only
 #    with a two-letter code (the server checks that too).
 echo "==> Allowing the setup wizard to change Wi-Fi, country, and time zone"
-sudo tee /etc/polkit-1/rules.d/50-wdw-wait-times.rules >/dev/null <<EOF
-// Installed by wdw-wait-times/install.sh: lets the kiosk's setup wizard
+sudo tee /etc/polkit-1/rules.d/50-disney-parks-wait-times.rules >/dev/null <<EOF
+// Installed by disney-parks-wait-times/install.sh: lets the kiosk's setup wizard
 // (server.py, running as $APP_USER) manage Wi-Fi, set the time zone, and
 // start the update service, without a password.
 polkit.addRule(function (action, subject) {
@@ -234,20 +200,20 @@ polkit.addRule(function (action, subject) {
   }
   // Starting the update service, and only that service.
   if (subject.user === "$APP_USER" && action.id === "org.freedesktop.systemd1.manage-units" &&
-      action.lookup("unit") === "wdw-update.service" && action.lookup("verb") === "start") {
+      action.lookup("unit") === "disney-parks-update.service" && action.lookup("verb") === "start") {
     return polkit.Result.YES;
   }
 });
 EOF
 SUDOERS_TMP="$(mktemp)"
 cat > "$SUDOERS_TMP" <<EOF
-# Installed by wdw-wait-times/install.sh: lets the kiosk's setup wizard read
+# Installed by disney-parks-wait-times/install.sh: lets the kiosk's setup wizard read
 # and set the Wi-Fi country (two capital letters only, e.g. JP).
 $APP_USER ALL=(root) NOPASSWD: /usr/bin/raspi-config nonint get_wifi_country, /usr/bin/raspi-config nonint do_wifi_country [A-Z][A-Z]
 EOF
 # Only install it if sudo accepts it; a broken sudoers file can lock out sudo.
 if sudo visudo -cf "$SUDOERS_TMP" >/dev/null; then
-  sudo install -m 0440 -o root -g root "$SUDOERS_TMP" /etc/sudoers.d/wdw-wait-times
+  sudo install -m 0440 -o root -g root "$SUDOERS_TMP" /etc/sudoers.d/disney-parks-wait-times
 else
   echo "    Couldn't install the sudo rule; the wizard won't be able to set the country." >&2
 fi
@@ -260,23 +226,8 @@ echo
 # reboots. Only possible when this folder is a git checkout.
 echo "==> Installing weekly update timer (Sundays 4:00 AM)"
 if [ -d "$APP_DIR/.git" ]; then
-  # The project was renamed from wdw-wait-times on GitHub. GitHub redirects
-  # the old address, but only until something else takes that name, so point
-  # older kiosks at the new one. (git runs as the folder's owner: as root,
-  # e.g. from update.sh, it refuses a repo someone else owns.)
-  as_app_user() {
-    if [ "$(id -u)" -eq 0 ] && [ "$APP_USER" != "root" ]; then runuser -u "$APP_USER" -- "$@"; else "$@"; fi
-  }
-  origin="$(as_app_user git -C "$APP_DIR" remote get-url origin 2>/dev/null || true)"
-  case "$origin" in
-    *davelund750/wdw-wait-times*)
-      as_app_user git -C "$APP_DIR" remote set-url origin "${origin/wdw-wait-times/disney-parks-wait-times}"
-      echo "    Updates now come from $(as_app_user git -C "$APP_DIR" remote get-url origin)"
-      ;;
-  esac
-
   chmod +x "$APP_DIR/kiosk/update.sh"
-  sudo tee /etc/systemd/system/wdw-update.service >/dev/null <<EOF
+  sudo tee /etc/systemd/system/disney-parks-update.service >/dev/null <<EOF
 [Unit]
 Description=Disney Parks Wait Times weekly update and reboot
 Wants=network-online.target
@@ -286,7 +237,7 @@ After=network-online.target
 Type=oneshot
 ExecStart=$APP_DIR/kiosk/update.sh
 EOF
-  sudo tee /etc/systemd/system/wdw-update.timer >/dev/null <<EOF
+  sudo tee /etc/systemd/system/disney-parks-update.timer >/dev/null <<EOF
 [Unit]
 Description=Run the Disney Parks Wait Times weekly update
 
@@ -300,8 +251,8 @@ Persistent=false
 WantedBy=timers.target
 EOF
   sudo systemctl daemon-reload
-  sudo systemctl enable --now wdw-update.timer
-  echo "    Next run: $(systemctl show wdw-update.timer -p NextElapseUSecRealtime --value)"
+  sudo systemctl enable --now disney-parks-update.timer
+  echo "    Next run: $(systemctl show disney-parks-update.timer -p NextElapseUSecRealtime --value)"
 else
   echo "    Skipped: $APP_DIR isn't a git checkout, so it can't fetch releases."
   echo "    Clone the project from GitHub instead of copying it to enable updates."

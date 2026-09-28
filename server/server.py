@@ -33,7 +33,7 @@ only answer requests from the Pi, never from elsewhere on the network:
 Only the web/ folder is served; the rest of the project (scripts, tests,
 .git) isn't reachable over the network.
 
-Usage: python3 server/server.py   (PORT and WDW_DATA_DIR override defaults)
+Usage: python3 server/server.py   (PORT and DPWT_DATA_DIR override defaults)
 """
 
 import json
@@ -48,7 +48,7 @@ import system
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # The pages, scripts, and styles: the only files served.
 WEB_DIR = os.path.join(PROJECT_DIR, "web")
-DATA_DIR = os.environ.get("WDW_DATA_DIR", os.path.expanduser("~/.local/share/wdw-wait-times"))
+DATA_DIR = os.environ.get("DPWT_DATA_DIR", os.path.expanduser("~/.local/share/disney-parks-wait-times"))
 # Each saved list: its API path -> the file it's kept in.
 LISTS = {
     "/api/favorites": "favorites.json",

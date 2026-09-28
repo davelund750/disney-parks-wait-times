@@ -104,7 +104,7 @@ class RealSystemTest(unittest.TestCase):
     def test_checking_for_updates_starts_the_update_service_without_waiting(self):
         commands = FakeCommands({})
         self.assertTrue(commands.start_update())
-        self.assertEqual(commands.calls, [("systemctl", "start", "--no-block", "wdw-update.service")])
+        self.assertEqual(commands.calls, [("systemctl", "start", "--no-block", "disney-parks-update.service")])
 
     def test_country_code_must_look_like_one(self):
         self.assertEqual(FakeCommands({"sudo -n raspi-config": "JP\n"}).country(), "JP")
