@@ -31,6 +31,21 @@ test("every resort is complete: parks with landmarks, a time zone, a weather poi
   }
 });
 
+test("setup offers the local resort first: Tokyo, Paris, Shanghai, Disneyland, else Walt Disney World", () => {
+  assert.equal(L.defaultResort("JP", "Asia/Tokyo"), "tdr");
+  assert.equal(L.defaultResort("FR", "Europe/Paris"), "dlp");
+  assert.equal(L.defaultResort("CN", "Asia/Shanghai"), "shdr");
+  assert.equal(L.defaultResort("US", "America/Los_Angeles"), "dlr");
+  assert.equal(L.defaultResort("US", "America/New_York"), "wdw");
+  assert.equal(L.defaultResort("US", "America/Denver"), "wdw");
+  assert.equal(L.defaultResort("GB", "Europe/London"), "wdw");
+  assert.equal(L.defaultResort(null, null), "wdw"); // not chosen yet
+  // Every resort offered is a real one.
+  for (const country of ["JP", "FR", "CN", "US", "GB"]) {
+    assert.ok(L.RESORTS.some((r) => r.id === L.defaultResort(country, "America/Los_Angeles")));
+  }
+});
+
 test("switching resorts switches the parks and the park time zone", () => {
   try {
     L.setResort("tdr");

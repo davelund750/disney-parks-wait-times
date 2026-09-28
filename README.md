@@ -417,7 +417,9 @@ version, and it still reboots.
 The tests cover the app's decision logic (which slides and rides to show,
 closed parks, favorites, time formatting), the server (saved lists,
 settings, and the setup wizard's endpoints, including that other devices
-can't use them), the weekly update script, and the release script. They
+can't use them), the weekly update script, the release script, and that the
+kiosk's setup files agree with each other (page titles, service and theme
+names, the files the installer uses). They
 need only Node.js and Python 3, with nothing to install. `make test` runs them all, or run them one at a time:
 
 ```

@@ -20,8 +20,6 @@ const COMMON_COUNTRIES = ["US", "JP", "GB", "CA", "AU", "MX", "DE", "FR", "BR", 
 // steps): where clocks are usually 12-hour, and temperatures in °F.
 const TWELVE_HOUR = new Set(["US", "CA", "AU", "NZ", "IN", "PH", "PK", "EG", "SA", "CO"]);
 const FAHRENHEIT = new Set(["US", "LR", "MM", "BS", "KY", "BZ", "PW", "FM", "MH"]);
-// The resort offered first for a country (see defaultResort).
-const RESORT_BY_COUNTRY = { JP: "tdr", FR: "dlp", CN: "shdr" };
 
 const els = {
   step: document.getElementById("step"),
@@ -293,14 +291,6 @@ const timezoneStep = {
   },
 };
 
-// The likely resort for where the display is: the local one in Japan,
-// France, or China; Disneyland on the US West Coast; otherwise Walt Disney
-// World.
-function defaultResort() {
-  if (RESORT_BY_COUNTRY[wizard.country]) return RESORT_BY_COUNTRY[wizard.country];
-  if (wizard.country === "US" && wizard.timezone === "America/Los_Angeles") return "dlr";
-  return "wdw";
-}
 
 function showResortName() {
   els.wordmark.textContent = (RESORTS.find((r) => r.id === wizard.resort) || RESORTS[0]).name;
@@ -308,7 +298,7 @@ function showResortName() {
 
 const resortStep = {
   render() {
-    if (!wizard.resortPicked) wizard.resort = defaultResort();
+    if (!wizard.resortPicked) wizard.resort = defaultResort(wizard.country, wizard.timezone);
     showResortName();
     els.step.appendChild(el("h1", "setup-title", "Which Disney resort?"));
     els.step.appendChild(el("p", "setup-text dim", "Its wait times, shows, and weather are what this display shows."));

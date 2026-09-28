@@ -87,6 +87,16 @@ setResort("wdw");
 // The chosen resort's time zone: park hours and show times are shown in it.
 const parkTimeZone = () => current.resort.timeZone;
 
+// The resort the setup wizard offers first, from where the display is (its
+// country code and time zone): the local one in Japan, France, or China;
+// Disneyland on the US West Coast; otherwise Walt Disney World.
+const RESORT_BY_COUNTRY = { JP: "tdr", FR: "dlp", CN: "shdr" };
+function defaultResort(country, timeZone) {
+  if (RESORT_BY_COUNTRY[country]) return RESORT_BY_COUNTRY[country];
+  if (country === "US" && timeZone === "America/Los_Angeles") return "dlr";
+  return "wdw";
+}
+
 const ALL_PARKS = { id: "ALL", short: "ALL", name: "All Parks", accent: "#f4c542", icon: "\u{1F3A2}" };
 const FAVORITES = { id: "FAV", short: "FAV", name: "Favorites", accent: "#db61a2", icon: "⭐" };
 
@@ -549,6 +559,7 @@ if (typeof module !== "undefined") {
     current,
     setResort,
     parkTimeZone,
+    defaultResort,
     ALL_PARKS,
     FAVORITES,
     displayPrefs,

@@ -16,6 +16,13 @@ kiosks installed whatever was on `main` each week.
 version. Re-flash its SD card and install it again (see
 [Install on a Raspberry Pi](README.md#install-on-a-raspberry-pi)).
 
+### Added
+- Tests that the kiosk's files agree with each other: the page titles and
+  the kiosk's watchdog, the update service and the permission to start it,
+  the boot splash theme, the hidden-pointer theme, the files the installer
+  uses, and that the installer takes no options. Also tests for the
+  hidden-pointer helper and for which resort setup offers first.
+
 ### Changed
 - The rest of the rename to Disney Parks Wait Times, on the Pi itself: the
   install folder (`~/disney-parks-wait-times`), the services
