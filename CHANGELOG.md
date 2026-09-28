@@ -12,6 +12,10 @@ kiosks installed whatever was on `main` each week.
 
 ## Unreleased
 
+No current unreleased changes.
+
+## 2.0.0 - 2026-09-27
+
 **Needs a fresh install:** a kiosk on 1.2.0 or earlier can't update to this
 version. Re-flash its SD card and install it again (see
 [Install on a Raspberry Pi](README.md#install-on-a-raspberry-pi)).
