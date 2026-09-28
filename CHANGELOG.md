@@ -12,7 +12,11 @@ kiosks installed whatever was on `main` each week.
 
 ## Unreleased
 
-No current unreleased changes.
+### Fixed
+- In grid view on All Parks or Favorites, a random park's landmark lit up
+  after the page loaded (and at each data refresh). The hidden carousel's
+  redraw was highlighting its current ride's park; now only the carousel,
+  when it's showing, highlights a ride's park.
 
 ## 2.1.0 - 2026-09-28
 

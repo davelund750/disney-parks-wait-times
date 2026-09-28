@@ -427,7 +427,10 @@ function renderHoursFor(parkId) {
 // none for null.
 function highlightLandmark(parkShort) {
   const selected = PARKS.find((park) => park.id === state.activeParkId);
-  const filled = selected ? selected.short : parkShort;
+  // The current slide's park, only while the carousel is showing: data
+  // refreshes also redraw the hidden carousel, which mustn't light up a
+  // park under the grid.
+  const filled = selected ? selected.short : state.view === "carousel" ? parkShort : null;
   for (const landmark of els.landmarks) {
     landmark.classList.toggle("active", landmark.dataset.park === filled);
     landmark.setAttribute("aria-pressed", String(!!selected && landmark.dataset.park === selected.short));
