@@ -12,6 +12,10 @@ kiosks installed whatever was on `main` each week.
 
 ## Unreleased
 
+No current unreleased changes.
+
+## 2.1.1 - 2026-09-28
+
 ### Fixed
 - In grid view on All Parks or Favorites, a random park's landmark lit up
   after the page loaded (and at each data refresh). The hidden carousel's
